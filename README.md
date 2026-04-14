@@ -4,7 +4,7 @@
 
 Smartplanix é um projeto onde clientes podem adicionar e visualizar seus compromissos
 
-## Tecnologias Utilizadas 
+## Tecnologias utilizadas 
 
 - Next.js 16
 - TypeScript
