@@ -281,9 +281,9 @@ export default function Home() {
       <aside className="w-72 bg-white shadow-lg flex flex-col dark:bg-gray-800">
         <div className="p-6 border-b border-gray-200 dark:border-gray-700">
           <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent dark:text-white">
-            Minha Agenda
+            Smartplanix
           </h1>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Organize seus compromissos</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Sua agenda inteligente</p>
         </div>
 
         {/* Botão Novo Compromisso */}

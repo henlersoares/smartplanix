@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Minha Agenda",
-  description: "Sistema de agenda",
+  title: "Smartplanix - Sua Agenda Inteligente",
+  description: "Organize seus compromissos e tarefas de forma inteligente",
 };
 
 export default function RootLayout({
