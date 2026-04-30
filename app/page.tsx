@@ -1,9 +1,19 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useTheme } from "next-themes";
 import { Calendar } from "@/components/ui/calendar";
+import { useNotifications } from "./hooks/useNotifications";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   PlusIcon,
   PencilIcon,
@@ -34,11 +44,99 @@ interface EventType {
 
 type ViewType = "day" | "week" | "month";
 
+const DEFAULT_CATEGORIES = ["Trabalho", "Pessoal", "Estudos", "Saúde", "Família"];
+
+// Componente de seleção de categoria com chips
+function CategorySelector({
+  value,
+  onChange,
+  customCategories,
+  onAddCategory,
+}: {
+  value: string;
+  onChange: (cat: string) => void;
+  customCategories: string[];
+  onAddCategory: (cat: string) => void;
+}) {
+  const [showInput, setShowInput] = useState(false);
+  const [newCategory, setNewCategory] = useState("");
+
+  const allCategories = [...DEFAULT_CATEGORIES, ...customCategories];
+
+  function handleAdd() {
+    const trimmed = newCategory.trim();
+    if (!trimmed) return;
+    if (!allCategories.includes(trimmed)) {
+      onAddCategory(trimmed);
+    }
+    onChange(trimmed);
+    setNewCategory("");
+    setShowInput(false);
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-2">
+        {allCategories.map((cat) => (
+          <button
+            key={cat}
+            type="button"
+            onClick={() => onChange(value === cat ? "" : cat)}
+            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors border ${value === cat
+                ? "bg-blue-500 text-white border-blue-500"
+                : "bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-blue-400 hover:text-blue-500"
+              }`}
+          >
+            {cat}
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={() => setShowInput(!showInput)}
+          className="px-3 py-1 rounded-full text-xs font-medium border border-dashed border-gray-300 dark:border-gray-600 text-gray-400 hover:border-blue-400 hover:text-blue-500 transition-colors flex items-center gap-1"
+        >
+          <PlusIcon className="w-3 h-3" />
+          Nova
+        </button>
+      </div>
+
+      {showInput && (
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            placeholder="Nome da categoria"
+            value={newCategory}
+            onChange={(e) => setNewCategory(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+            className="flex-1 px-3 py-1.5 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
+            autoFocus
+          />
+          <button
+            type="button"
+            onClick={handleAdd}
+            className="px-3 py-1.5 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+          >
+            Adicionar
+          </button>
+          <button
+            type="button"
+            onClick={() => { setShowInput(false); setNewCategory(""); }}
+            className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+          >
+            <XIcon className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Home() {
   const [title, setTitle] = useState("");
   const [selectedDateTime, setSelectedDateTime] = useState(new Date());
   const [selectedTime, setSelectedTime] = useState("12:00");
   const [events, setEvents] = useState<EventType[]>([]);
+  const { scheduleNotification } = useNotifications();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<EventType | null>(null);
   const [editTitle, setEditTitle] = useState("");
@@ -55,7 +153,22 @@ export default function Home() {
   const [editRepeat, setEditRepeat] = useState<"none" | "daily" | "weekly" | "monthly">("none");
   const [editCategory, setEditCategory] = useState("");
   const [editDescription, setEditDescription] = useState("");
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [eventToDelete, setEventToDelete] = useState<number | null>(null);
+  const [customCategories, setCustomCategories] = useState<string[]>([]);
+
+  // Tema gerenciado pelo next-themes
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const isDarkMode = mounted && theme === "dark";
+
+  const toggleTheme = () => {
+    setTheme(isDarkMode ? "light" : "dark");
+  };
 
   // Carregar eventos
   useEffect(() => {
@@ -75,29 +188,20 @@ export default function Home() {
     localStorage.setItem("events", JSON.stringify(events));
   }, [events]);
 
-  // Carregar tema salvo
+  // Carregar categorias customizadas
   useEffect(() => {
-    const savedTheme = localStorage.getItem("theme");
-    if (savedTheme === "dark") {
-      setIsDarkMode(true);
-      document.documentElement.classList.add("dark");
-    }
+    const saved = localStorage.getItem("customCategories");
+    if (saved) setCustomCategories(JSON.parse(saved));
   }, []);
 
-  // Salvar tema
+  // Salvar categorias customizadas
   useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("theme", "dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("theme", "light");
-    }
-  }, [isDarkMode]);
+    localStorage.setItem("customCategories", JSON.stringify(customCategories));
+  }, [customCategories]);
 
-  const toggleTheme = () => {
-    setIsDarkMode(!isDarkMode);
-  };
+  function handleAddCustomCategory(cat: string) {
+    setCustomCategories((prev) => [...prev, cat]);
+  }
 
   function combineDateAndTime(date: Date, timeString: string): Date {
     const [hours, minutes] = timeString.split(":").map(Number);
@@ -130,6 +234,10 @@ export default function Home() {
     setIsModalOpen(false);
     window.dispatchEvent(new Event('events-updated'));
 
+    if (reminder) {
+      scheduleNotification(title, finalDateTime);
+    }
+
     toast.success("Compromisso adicionado!", {
       description: `${title} - ${finalDateTime.toLocaleDateString("pt-BR")} as ${finalDateTime.toLocaleTimeString("pt-BR", {
         hour: "2-digit",
@@ -152,20 +260,25 @@ export default function Home() {
       prev.map((event) =>
         event.id === editingEvent.id
           ? {
-              ...event,
-              title: editTitle,
-              dateTime: finalDateTime,
-              reminder: editReminder,
-              repeat: editRepeat,
-              category: editCategory.trim() || undefined,
-              description: editDescription.trim() || undefined,
-            }
+            ...event,
+            title: editTitle,
+            dateTime: finalDateTime,
+            reminder: editReminder,
+            repeat: editRepeat,
+            category: editCategory.trim() || undefined,
+            description: editDescription.trim() || undefined,
+          }
           : event
       )
     );
 
     setEditingEvent(null);
     window.dispatchEvent(new Event('events-updated'));
+
+    if (editReminder) {
+      scheduleNotification(editTitle, finalDateTime);
+    }
+
     toast.success("Compromisso editado!");
   }
 
@@ -301,11 +414,10 @@ export default function Home() {
         <nav className="flex-1 px-4 space-y-1">
           <button
             onClick={() => setCurrentView("day")}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-              currentView === "day"
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${currentView === "day"
                 ? "bg-blue-50 text-blue-600 dark:bg-gray-700 dark:text-blue-400"
                 : "text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-700"
-            }`}
+              }`}
           >
             <LayoutListIcon className="w-5 h-5" />
             <span className="font-medium">Diário</span>
@@ -313,11 +425,10 @@ export default function Home() {
 
           <button
             onClick={() => setCurrentView("week")}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-              currentView === "week"
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${currentView === "week"
                 ? "bg-blue-50 text-blue-600 dark:bg-gray-700 dark:text-blue-400"
                 : "text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-700"
-            }`}
+              }`}
           >
             <CalendarDaysIcon className="w-5 h-5" />
             <span className="font-medium">Semanal</span>
@@ -325,17 +436,32 @@ export default function Home() {
 
           <button
             onClick={() => setCurrentView("month")}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-              currentView === "month"
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${currentView === "month"
                 ? "bg-blue-50 text-blue-600 dark:bg-gray-700 dark:text-blue-400"
                 : "text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-700"
-            }`}
+              }`}
           >
             <CalendarMonthIcon className="w-5 h-5" />
             <span className="font-medium">Mensal</span>
           </button>
         </nav>
 
+        {/* Mini Calendário */}
+        <div className="px-4 py-2">
+          <Calendar
+            mode="single"
+            selected={selectedDate}
+            onSelect={(date) => {
+              if (date) {
+                setSelectedDate(date);
+                setCurrentView("day");
+              }
+            }}
+            locale={ptBR}
+            className="rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-700/50 w-full [&_table]:w-full [&_td]:p-0 [&_th]:p-0 [&_button]:w-full [&_button]:text-xs [&_.rdp-caption_label]:text-xs [&_.rdp-nav_button]:h-6 [&_.rdp-nav_button]:w-6"
+          />
+        </div>
+        
         {/* Estatísticas */}
         <div className="p-4 border-t border-gray-200 dark:border-gray-700">
           <div className="bg-gray-50 rounded-xl p-4 dark:bg-gray-700">
@@ -363,7 +489,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Toggle de Tema - ADICIONADO AQUI */}
+        {/* Toggle de Tema */}
         <div className="p-4 border-t border-gray-200 dark:border-gray-700">
           <button
             onClick={toggleTheme}
@@ -379,16 +505,8 @@ export default function Home() {
                 {isDarkMode ? "Tema Claro" : "Tema Escuro"}
               </span>
             </div>
-            <div
-              className={`w-10 h-5 rounded-full transition-colors ${
-                isDarkMode ? "bg-blue-500" : "bg-gray-300 dark:bg-gray-600"
-              }`}
-            >
-              <div
-                className={`w-4 h-4 rounded-full bg-white transition-transform mt-0.5 ${
-                  isDarkMode ? "translate-x-5" : "translate-x-0.5"
-                }`}
-              />
+            <div className={`w-10 h-5 rounded-full transition-colors ${isDarkMode ? "bg-blue-500" : "bg-gray-300 dark:bg-gray-600"}`}>
+              <div className={`w-4 h-4 rounded-full bg-white transition-transform mt-0.5 ${isDarkMode ? "translate-x-5" : "translate-x-0.5"}`} />
             </div>
           </button>
         </div>
@@ -406,11 +524,9 @@ export default function Home() {
               >
                 ←
               </button>
-
               <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200">
                 {getViewTitle()}
               </h2>
-
               <button
                 onClick={() => navigateDate("next")}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors dark:hover:bg-gray-700 dark:text-gray-300"
@@ -463,22 +579,14 @@ export default function Home() {
                           )}
                         </button>
                         <div className="flex-1">
-                          <p
-                            className={`font-medium ${
-                              event.completed
-                                ? "line-through text-gray-400 dark:text-gray-500"
-                                : "text-gray-700 dark:text-gray-200"
-                            }`}
-                          >
+                          <p className={`font-medium ${event.completed
+                              ? "line-through text-gray-400 dark:text-gray-500"
+                              : "text-gray-700 dark:text-gray-200"
+                            }`}>
                             {event.title}
                           </p>
-                          <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 flex items-center gap-1">
-                            <span>
-                              {event.dateTime.toLocaleDateString("pt-BR", {
-                                day: "2-digit",
-                                month: "long",
-                              })}
-                            </span>
+                          <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 flex items-center gap-1 flex-wrap">
+                            <span>{event.dateTime.toLocaleDateString("pt-BR", { day: "2-digit", month: "long" })}</span>
                             <span>•</span>
                             <span className="flex items-center gap-1">
                               <ClockIcon className="w-3 h-3" />
@@ -487,7 +595,7 @@ export default function Home() {
                             {event.category && (
                               <>
                                 <span>•</span>
-                                <span className="flex items-center gap-1">
+                                <span className="flex items-center gap-1 px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full">
                                   <TagIcon className="w-3 h-3" />
                                   {event.category}
                                 </span>
@@ -515,7 +623,7 @@ export default function Home() {
                           <PencilIcon className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => handleRemoveEvent(event.id)}
+                          onClick={() => setEventToDelete(event.id)}
                           className="text-gray-400 hover:text-red-500 p-2 rounded-lg transition-colors"
                         >
                           <TrashIcon className="w-4 h-4" />
@@ -535,9 +643,7 @@ export default function Home() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-xl max-w-4xl w-full p-6 shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200">
-                Novo Compromisso
-              </h2>
+              <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200">Novo Compromisso</h2>
               <button
                 onClick={() => setIsModalOpen(false)}
                 className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
@@ -549,9 +655,7 @@ export default function Home() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Titulo
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Titulo</label>
                   <input
                     type="text"
                     placeholder="Digite o titulo do compromisso"
@@ -564,24 +668,20 @@ export default function Home() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Data
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Data</label>
                   <Calendar
                     mode="single"
                     selected={selectedDateTime}
                     onSelect={(date) => date && setSelectedDateTime(date)}
                     locale={ptBR}
-                    className="rounded-md border dark:bg-gray-700 dark:border-gray-600"
+                    className="rounded-md border dark:bg-gray-700 dark:border-gray-600 w-full"
                   />
                 </div>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Horario
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Horario</label>
                   <div className="flex items-center gap-2">
                     <ClockIcon className="w-4 h-4 text-gray-400" />
                     <input
@@ -594,23 +694,17 @@ export default function Home() {
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Lembrete
-                  </label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Lembrete</label>
                   <button
                     onClick={() => setReminder(!reminder)}
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${reminder ? "bg-blue-500" : "bg-gray-300 dark:bg-gray-600"}`}
                   >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${reminder ? "translate-x-6" : "translate-x-1"}`}
-                    />
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${reminder ? "translate-x-6" : "translate-x-1"}`} />
                   </button>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Repetir
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Repetir</label>
                   <select
                     value={repeat}
                     onChange={(e) => setRepeat(e.target.value as any)}
@@ -627,22 +721,16 @@ export default function Home() {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Categoria
                   </label>
-                  <div className="flex items-center gap-2">
-                    <TagIcon className="w-4 h-4 text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder="Ex: Trabalho, Pessoal, Estudos"
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value)}
-                      className="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
-                    />
-                  </div>
+                  <CategorySelector
+                    value={category}
+                    onChange={setCategory}
+                    customCategories={customCategories}
+                    onAddCategory={handleAddCustomCategory}
+                  />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Descricao
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Descricao</label>
                   <div className="flex items-start gap-2">
                     <FileTextIcon className="w-4 h-4 text-gray-400 mt-2" />
                     <textarea
@@ -660,7 +748,7 @@ export default function Home() {
             <div className="flex gap-3 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="flex-1 px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                className="flex-1 px-4 py-2 border border-gray-200 dark:border-gray-600 dark:bg-gray-700 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
               >
                 Cancelar
               </button>
@@ -680,9 +768,7 @@ export default function Home() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-xl max-w-4xl w-full p-6 shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200">
-                Editar Compromisso
-              </h2>
+              <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200">Editar Compromisso</h2>
               <button
                 onClick={() => setEditingEvent(null)}
                 className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
@@ -694,9 +780,7 @@ export default function Home() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Titulo
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Titulo</label>
                   <input
                     type="text"
                     placeholder="Digite o titulo do compromisso"
@@ -707,24 +791,20 @@ export default function Home() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Data
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Data</label>
                   <Calendar
                     mode="single"
                     selected={editDateTime}
                     onSelect={(date) => date && setEditDateTime(date)}
                     locale={ptBR}
-                    className="rounded-md border dark:bg-gray-700 dark:border-gray-600"
+                    className="rounded-md border dark:bg-gray-700 dark:border-gray-600 w-full"
                   />
                 </div>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Horario
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Horario</label>
                   <div className="flex items-center gap-2">
                     <ClockIcon className="w-4 h-4 text-gray-400" />
                     <input
@@ -737,23 +817,17 @@ export default function Home() {
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Lembrete
-                  </label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Lembrete</label>
                   <button
                     onClick={() => setEditReminder(!editReminder)}
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${editReminder ? "bg-blue-500" : "bg-gray-300 dark:bg-gray-600"}`}
                   >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${editReminder ? "translate-x-6" : "translate-x-1"}`}
-                    />
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${editReminder ? "translate-x-6" : "translate-x-1"}`} />
                   </button>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Repetir
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Repetir</label>
                   <select
                     value={editRepeat}
                     onChange={(e) => setEditRepeat(e.target.value as any)}
@@ -770,22 +844,16 @@ export default function Home() {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Categoria
                   </label>
-                  <div className="flex items-center gap-2">
-                    <TagIcon className="w-4 h-4 text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder="Ex: Trabalho, Pessoal, Estudos"
-                      value={editCategory}
-                      onChange={(e) => setEditCategory(e.target.value)}
-                      className="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
-                    />
-                  </div>
+                  <CategorySelector
+                    value={editCategory}
+                    onChange={setEditCategory}
+                    customCategories={customCategories}
+                    onAddCategory={handleAddCustomCategory}
+                  />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Descricao
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Descricao</label>
                   <div className="flex items-start gap-2">
                     <FileTextIcon className="w-4 h-4 text-gray-400 mt-2" />
                     <textarea
@@ -817,6 +885,35 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {/* Dialog de confirmação de remoção */}
+      <Dialog open={eventToDelete !== null} onOpenChange={() => setEventToDelete(null)}>
+        <DialogContent className="dark:bg-gray-800">
+          <DialogHeader>
+            <DialogTitle>Remover compromisso</DialogTitle>
+            <DialogDescription>
+              Tem certeza que deseja remover este compromisso? Esta ação não pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <button
+              onClick={() => setEventToDelete(null)}
+              className="flex-1 px-4 py-2 border border-gray-200 dark:border-gray-600 dark:bg-gray-700 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={() => {
+                if (eventToDelete !== null) handleRemoveEvent(eventToDelete);
+                setEventToDelete(null);
+              }}
+              className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+            >
+              Remover
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
