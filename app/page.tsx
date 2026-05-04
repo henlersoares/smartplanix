@@ -166,15 +166,54 @@ function WeekGrid({ events, selectedDate, onEventClick }: {
               return (
                 <div key={dayIndex} className="flex-1 p-1 relative">
                   {dayEvents.map((event) => (
-                    <button key={event.id} onClick={() => onEventClick(event)}
-                      className={`w-full text-left px-2 py-1 rounded-md text-xs font-medium mb-1 transition-opacity hover:opacity-80 ${event.completed
-                        ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 line-through"
-                        : getCategoryColor(event.category)}`}>
-                      <span className="block truncate">{event.title}</span>
-                      <span className="text-xs opacity-70">
-                        {event.dateTime.getHours().toString().padStart(2, "0")}:{event.dateTime.getMinutes().toString().padStart(2, "0")}
-                      </span>
-                    </button>
+                    <Popover key={event.id}>
+                      <PopoverTrigger asChild>
+                        <button
+                          className={`w-full text-left px-2 py-1 rounded-md text-xs font-medium mb-1 transition-opacity hover:opacity-80 ${event.completed
+                            ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 line-through"
+                            : getCategoryColor(event.category)}`}>
+                          <span className="block truncate">{event.title}</span>
+                          <span className="text-xs opacity-70">
+                            {event.dateTime.getHours().toString().padStart(2, "0")}:{event.dateTime.getMinutes().toString().padStart(2, "0")}
+                          </span>
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-72 p-0 dark:bg-gray-800 dark:border-gray-700" align="start">
+                        <div className="p-3 border-b border-gray-100 dark:border-gray-700">
+                          <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                            {event.dateTime.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}
+                          </p>
+                        </div>
+                        <div className="p-2 space-y-1 max-h-64 overflow-y-auto">
+                          <button
+                            onClick={() => onEventClick(event)}
+                            className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                          >
+                            <div className="flex items-center gap-2">
+                              <div className={`w-2 h-2 rounded-full shrink-0 ${getCategoryColor(event.category).split(" ")[0]}`} />
+                              <p className={`text-sm font-medium flex-1 truncate ${event.completed
+                                  ? "line-through text-gray-400 dark:text-gray-500"
+                                  : "text-gray-700 dark:text-gray-200"
+                                }`}>
+                                {event.title}
+                              </p>
+                            </div>
+                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 pl-4">
+                              {event.dateTime.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                              {event.category && ` · ${event.category}`}
+                            </p>
+                          </button>
+                        </div>
+                        <div className="p-2 border-t border-gray-100 dark:border-gray-700">
+                          <button
+                            onClick={() => onEventClick(event)}
+                            className="w-full text-xs text-blue-500 hover:text-blue-600 dark:text-blue-400 py-1 transition-colors"
+                          >
+                            Editar compromisso →
+                          </button>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   ))}
                 </div>
               );
@@ -245,10 +284,10 @@ function MonthGrid({ events, selectedDate, onDayClick, onEventClick }: {
                   {/* Número do dia */}
                   <div className="flex items-center justify-between mb-2">
                     <span className={`text-lg font-bold leading-none ${isToday
-                        ? "w-8 h-8 flex items-center justify-center rounded-full bg-blue-500 text-white text-base"
-                        : isCurrentMonth
-                          ? "text-gray-800 dark:text-gray-100"
-                          : "text-gray-300 dark:text-gray-600"
+                      ? "w-8 h-8 flex items-center justify-center rounded-full bg-blue-500 text-white text-base"
+                      : isCurrentMonth
+                        ? "text-gray-800 dark:text-gray-100"
+                        : "text-gray-300 dark:text-gray-600"
                       }`}>
                       {date.getDate()}
                     </span>
@@ -265,8 +304,8 @@ function MonthGrid({ events, selectedDate, onDayClick, onEventClick }: {
                       <div
                         key={event.id}
                         className={`w-full text-left px-2 py-0.5 rounded-md text-xs font-medium truncate ${event.completed
-                            ? "bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 line-through"
-                            : getCategoryColor(event.category)
+                          ? "bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 line-through"
+                          : getCategoryColor(event.category)
                           }`}
                       >
                         {event.title}
@@ -296,8 +335,8 @@ function MonthGrid({ events, selectedDate, onDayClick, onEventClick }: {
                         <div className="flex items-center gap-2">
                           <div className={`w-2 h-2 rounded-full shrink-0 ${getCategoryColor(event.category).split(" ")[0]}`} />
                           <p className={`text-sm font-medium flex-1 truncate ${event.completed
-                              ? "line-through text-gray-400 dark:text-gray-500"
-                              : "text-gray-700 dark:text-gray-200"
+                            ? "line-through text-gray-400 dark:text-gray-500"
+                            : "text-gray-700 dark:text-gray-200"
                             }`}>
                             {event.title}
                           </p>
