@@ -15,6 +15,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   PlusIcon,
   PencilIcon,
   TrashIcon,
@@ -45,20 +50,27 @@ interface EventType {
 type ViewType = "day" | "week" | "month";
 
 const DEFAULT_CATEGORIES = ["Trabalho", "Pessoal", "Estudos", "Saúde", "Família"];
-
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const WEEK_DAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
+const CATEGORY_COLORS: Record<string, string> = {
+  "Trabalho": "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300",
+  "Pessoal": "bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300",
+  "Estudos": "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300",
+  "Saúde": "bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300",
+  "Família": "bg-pink-100 dark:bg-pink-900/40 text-pink-700 dark:text-pink-300",
+};
+
+function getCategoryColor(category?: string) {
+  if (!category) return "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300";
+  return CATEGORY_COLORS[category] || "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300";
+}
+
 function CategorySelector({
-  value,
-  onChange,
-  customCategories,
-  onAddCategory,
+  value, onChange, customCategories, onAddCategory,
 }: {
-  value: string;
-  onChange: (cat: string) => void;
-  customCategories: string[];
-  onAddCategory: (cat: string) => void;
+  value: string; onChange: (cat: string) => void;
+  customCategories: string[]; onAddCategory: (cat: string) => void;
 }) {
   const [showInput, setShowInput] = useState(false);
   const [newCategory, setNewCategory] = useState("");
@@ -77,50 +89,26 @@ function CategorySelector({
     <div className="space-y-2">
       <div className="flex flex-wrap gap-2">
         {allCategories.map((cat) => (
-          <button
-            key={cat}
-            type="button"
-            onClick={() => onChange(value === cat ? "" : cat)}
+          <button key={cat} type="button" onClick={() => onChange(value === cat ? "" : cat)}
             className={`px-3 py-1 rounded-full text-xs font-medium transition-colors border ${value === cat
               ? "bg-blue-500 text-white border-blue-500"
-              : "bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-blue-400 hover:text-blue-500"
-              }`}
-          >
+              : "bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-blue-400 hover:text-blue-500"}`}>
             {cat}
           </button>
         ))}
-        <button
-          type="button"
-          onClick={() => setShowInput(!showInput)}
-          className="px-3 py-1 rounded-full text-xs font-medium border border-dashed border-gray-300 dark:border-gray-600 text-gray-400 hover:border-blue-400 hover:text-blue-500 transition-colors flex items-center gap-1"
-        >
-          <PlusIcon className="w-3 h-3" />
-          Nova
+        <button type="button" onClick={() => setShowInput(!showInput)}
+          className="px-3 py-1 rounded-full text-xs font-medium border border-dashed border-gray-300 dark:border-gray-600 text-gray-400 hover:border-blue-400 hover:text-blue-500 transition-colors flex items-center gap-1">
+          <PlusIcon className="w-3 h-3" />Nova
         </button>
       </div>
       {showInput && (
         <div className="flex items-center gap-2">
-          <input
-            type="text"
-            placeholder="Nome da categoria"
-            value={newCategory}
+          <input type="text" placeholder="Nome da categoria" value={newCategory}
             onChange={(e) => setNewCategory(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-            className="flex-1 px-3 py-1.5 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
-            autoFocus
-          />
-          <button
-            type="button"
-            onClick={handleAdd}
-            className="px-3 py-1.5 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-          >
-            Adicionar
-          </button>
-          <button
-            type="button"
-            onClick={() => { setShowInput(false); setNewCategory(""); }}
-            className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-          >
+            className="flex-1 px-3 py-1.5 text-sm bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" autoFocus />
+          <button type="button" onClick={handleAdd} className="px-3 py-1.5 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">Adicionar</button>
+          <button type="button" onClick={() => { setShowInput(false); setNewCategory(""); }} className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
             <XIcon className="w-4 h-4" />
           </button>
         </div>
@@ -129,25 +117,15 @@ function CategorySelector({
   );
 }
 
-// Grade semanal
-function WeekGrid({
-  events,
-  selectedDate,
-  onEventClick,
-}: {
-  events: EventType[];
-  selectedDate: Date;
-  onEventClick: (event: EventType) => void;
+function WeekGrid({ events, selectedDate, onEventClick }: {
+  events: EventType[]; selectedDate: Date; onEventClick: (event: EventType) => void;
 }) {
   const startOfWeek = new Date(selectedDate);
   startOfWeek.setDate(selectedDate.getDate() - selectedDate.getDay());
-
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = 8 * 56; // 8h * 56px por hora
-    }
+    if (scrollRef.current) scrollRef.current.scrollTop = 8 * 56;
   }, []);
 
   const weekDays = Array.from({ length: 7 }, (_, i) => {
@@ -155,75 +133,46 @@ function WeekGrid({
     d.setDate(startOfWeek.getDate() + i);
     return d;
   });
-
   const today = new Date();
 
   function getEventsForDayAndHour(day: Date, hour: number) {
-    return events.filter((e) => {
-      return (
-        e.dateTime.toDateString() === day.toDateString() &&
-        e.dateTime.getHours() === hour
-      );
-    });
+    return events.filter(e => e.dateTime.toDateString() === day.toDateString() && e.dateTime.getHours() === hour);
   }
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-      {/* Header com dias da semana */}
       <div className="flex border-b border-gray-100 dark:border-gray-700">
         <div className="w-20 shrink-0 border-r border-gray-100 dark:border-gray-700" />
         {weekDays.map((day, i) => {
           const isToday = day.toDateString() === today.toDateString();
           return (
-            <div
-              key={i}
-              className="flex-1 p-1 relative"
-            >
-              <p className="text-xs text-gray-400 dark:text-gray-500 uppercase text-center">
-                {WEEK_DAYS[i]}
-              </p>
-              <p className={`text-sm font-semibold mt-1 w-7 h-7 flex items-center justify-center mx-auto rounded-full ${isToday ? "bg-blue-500 text-white" : "text-gray-700 dark:text-gray-200"
-                }`}>
+            <div key={i} className="flex-1 p-1 relative">
+              <p className="text-xs text-gray-400 dark:text-gray-500 uppercase text-center">{WEEK_DAYS[i]}</p>
+              <p className={`text-sm font-semibold mt-1 w-7 h-7 flex items-center justify-center mx-auto rounded-full ${isToday ? "bg-blue-500 text-white" : "text-gray-700 dark:text-gray-200"}`}>
                 {day.getDate()}
               </p>
             </div>
           );
         })}
       </div>
-
-      {/* Grade de horários */}
       <div ref={scrollRef} className="overflow-y-auto max-h-[600px]">
         {HOURS.map((hour) => (
-          <div
-            key={hour}
-            className="flex border-b border-gray-50 dark:border-gray-700/50 min-h-[56px] min-w-full"
-          >
-            {/* Coluna de hora */}
+          <div key={hour} className="flex border-b border-gray-50 dark:border-gray-700/50 min-h-[56px] min-w-full">
             <div className="w-20 shrink-0 text-xs text-gray-400 dark:text-gray-500 border-r border-gray-100 dark:border-gray-700 text-right pr-3 pt-2">
               {hour.toString().padStart(2, "0")}:00
             </div>
-
-            {/* Células dos dias */}
             {weekDays.map((day, dayIndex) => {
               const dayEvents = getEventsForDayAndHour(day, hour);
               return (
-                <div
-                  key={dayIndex}
-                  className="flex-1 border-r border-gray-100 dark:border-gray-700/50 last:border-r-0 p-1 relative"
-                >
+                <div key={dayIndex} className="flex-1 p-1 relative">
                   {dayEvents.map((event) => (
-                    <button
-                      key={event.id}
-                      onClick={() => onEventClick(event)}
+                    <button key={event.id} onClick={() => onEventClick(event)}
                       className={`w-full text-left px-2 py-1 rounded-md text-xs font-medium mb-1 transition-opacity hover:opacity-80 ${event.completed
                         ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 line-through"
-                        : "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300"
-                        }`}
-                    >
+                        : getCategoryColor(event.category)}`}>
                       <span className="block truncate">{event.title}</span>
                       <span className="text-xs opacity-70">
-                        {event.dateTime.getHours().toString().padStart(2, "0")}:
-                        {event.dateTime.getMinutes().toString().padStart(2, "0")}
+                        {event.dateTime.getHours().toString().padStart(2, "0")}:{event.dateTime.getMinutes().toString().padStart(2, "0")}
                       </span>
                     </button>
                   ))}
@@ -232,6 +181,147 @@ function WeekGrid({
             })}
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function MonthGrid({ events, selectedDate, onDayClick, onEventClick }: {
+  events: EventType[]; selectedDate: Date;
+  onDayClick: (date: Date) => void; onEventClick: (event: EventType) => void;
+}) {
+  const today = new Date();
+  const year = selectedDate.getFullYear();
+  const month = selectedDate.getMonth();
+
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  const startPadding = firstDay.getDay();
+
+  const days: (Date | null)[] = [];
+  for (let i = 0; i < startPadding; i++) days.push(null);
+  for (let d = 1; d <= lastDay.getDate(); d++) days.push(new Date(year, month, d));
+  while (days.length % 7 !== 0) days.push(null);
+
+  function getEventsForDay(date: Date) {
+    return events
+      .filter(e => e.dateTime.toDateString() === date.toDateString())
+      .sort((a, b) => a.dateTime.getTime() - b.dateTime.getTime());
+  }
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+      {/* Header dias da semana */}
+      <div className="grid grid-cols-7 border-b border-gray-100 dark:border-gray-700">
+        {WEEK_DAYS.map((d) => (
+          <div key={d} className="py-3 text-center text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase">
+            {d}
+          </div>
+        ))}
+      </div>
+
+      {/* Grid de dias */}
+      <div className="grid grid-cols-7">
+        {days.map((date, idx) => {
+          if (!date) return (
+            <div key={`empty-${idx}`} className="min-h-[120px] border-b border-r border-gray-50 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-900/20" />
+          );
+
+          const dayEvents = getEventsForDay(date);
+          const isToday = date.toDateString() === today.toDateString();
+          const isSelected = date.toDateString() === selectedDate.toDateString();
+          const isCurrentMonth = date.getMonth() === month;
+          const maxVisible = 3;
+          const extra = dayEvents.length - maxVisible;
+          const hasEvents = dayEvents.length > 0;
+
+          return (
+            <Popover key={date.toISOString()}>
+              <PopoverTrigger asChild>
+                <div
+                  onClick={() => !hasEvents && onDayClick(date)}
+                  className={`min-h-[120px] border-b border-r border-gray-100 dark:border-gray-700/50 p-2 cursor-pointer transition-colors hover:bg-blue-50/50 dark:hover:bg-blue-900/10 ${isSelected ? "bg-blue-50 dark:bg-blue-900/20" : ""}`}
+                >
+                  {/* Número do dia */}
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={`text-lg font-bold leading-none ${isToday
+                        ? "w-8 h-8 flex items-center justify-center rounded-full bg-blue-500 text-white text-base"
+                        : isCurrentMonth
+                          ? "text-gray-800 dark:text-gray-100"
+                          : "text-gray-300 dark:text-gray-600"
+                      }`}>
+                      {date.getDate()}
+                    </span>
+                    {hasEvents && (
+                      <span className="text-xs text-gray-400 dark:text-gray-500">
+                        {dayEvents.length} {dayEvents.length === 1 ? "compromisso" : "compromissos"}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Chips de eventos */}
+                  <div className="space-y-1">
+                    {dayEvents.slice(0, maxVisible).map((event) => (
+                      <div
+                        key={event.id}
+                        className={`w-full text-left px-2 py-0.5 rounded-md text-xs font-medium truncate ${event.completed
+                            ? "bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 line-through"
+                            : getCategoryColor(event.category)
+                          }`}
+                      >
+                        {event.title}
+                      </div>
+                    ))}
+                    {extra > 0 && (
+                      <p className="text-xs text-gray-400 dark:text-gray-500 pl-1">+{extra} mais</p>
+                    )}
+                  </div>
+                </div>
+              </PopoverTrigger>
+
+              {hasEvents && (
+                <PopoverContent className="w-72 p-0 dark:bg-gray-800 dark:border-gray-700" align="start">
+                  <div className="p-3 border-b border-gray-100 dark:border-gray-700">
+                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                      {date.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}
+                    </p>
+                  </div>
+                  <div className="p-2 space-y-1 max-h-64 overflow-y-auto">
+                    {dayEvents.map((event) => (
+                      <button
+                        key={event.id}
+                        onClick={() => onEventClick(event)}
+                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className={`w-2 h-2 rounded-full shrink-0 ${getCategoryColor(event.category).split(" ")[0]}`} />
+                          <p className={`text-sm font-medium flex-1 truncate ${event.completed
+                              ? "line-through text-gray-400 dark:text-gray-500"
+                              : "text-gray-700 dark:text-gray-200"
+                            }`}>
+                            {event.title}
+                          </p>
+                        </div>
+                        <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 pl-4">
+                          {event.dateTime.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                          {event.category && ` · ${event.category}`}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="p-2 border-t border-gray-100 dark:border-gray-700">
+                    <button
+                      onClick={() => onDayClick(date)}
+                      className="w-full text-xs text-blue-500 hover:text-blue-600 dark:text-blue-400 py-1 transition-colors"
+                    >
+                      Ver dia completo →
+                    </button>
+                  </div>
+                </PopoverContent>
+              )}
+            </Popover>
+          );
+        })}
       </div>
     </div>
   );
@@ -265,7 +355,6 @@ export default function Home() {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => { setMounted(true); }, []);
-
   const isDarkMode = mounted && theme === "dark";
   const toggleTheme = () => setTheme(isDarkMode ? "light" : "dark");
 
@@ -277,18 +366,14 @@ export default function Home() {
     }
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem("events", JSON.stringify(events));
-  }, [events]);
+  useEffect(() => { localStorage.setItem("events", JSON.stringify(events)); }, [events]);
 
   useEffect(() => {
     const saved = localStorage.getItem("customCategories");
     if (saved) setCustomCategories(JSON.parse(saved));
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem("customCategories", JSON.stringify(customCategories));
-  }, [customCategories]);
+  useEffect(() => { localStorage.setItem("customCategories", JSON.stringify(customCategories)); }, [customCategories]);
 
   function handleAddCustomCategory(cat: string) {
     setCustomCategories((prev) => [...prev, cat]);
@@ -358,7 +443,11 @@ export default function Home() {
     return date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
   }
 
-  function openCreateModal() { resetForm(); setIsModalOpen(true); }
+  function openCreateModal(date?: Date) {
+    resetForm();
+    if (date) setSelectedDateTime(date);
+    setIsModalOpen(true);
+  }
 
   function openEditFromWeek(event: EventType) {
     setEditingEvent(event);
@@ -393,7 +482,7 @@ export default function Home() {
   const filteredEvents = getFilteredEvents();
 
   function getMonthName(month: number) {
-    return ["Janeiro", "Fevereiro", "Marco", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"][month];
+    return ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"][month];
   }
 
   function navigateDate(direction: "prev" | "next") {
@@ -423,49 +512,30 @@ export default function Home() {
       {/* Sidebar */}
       <aside className="w-72 bg-white shadow-lg flex flex-col dark:bg-gray-800 overflow-y-auto">
         <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent dark:text-white">
-            Smartplanix
-          </h1>
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent dark:text-white">Smartplanix</h1>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Sua agenda inteligente</p>
         </div>
 
         <div className="p-4">
-          <button
-            onClick={openCreateModal}
-            className="w-full bg-blue-500 hover:bg-blue-600 text-white px-4 py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 shadow-sm"
-          >
-            <PlusIcon className="w-5 h-5" />
-            Novo Compromisso
+          <button onClick={() => openCreateModal()}
+            className="w-full bg-blue-500 hover:bg-blue-600 text-white px-4 py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 shadow-sm">
+            <PlusIcon className="w-5 h-5" />Novo Compromisso
           </button>
         </div>
 
         {(() => {
           const now = new Date();
-          const next = events
-            .filter(e => !e.completed && e.dateTime > now)
-            .sort((a, b) => a.dateTime.getTime() - b.dateTime.getTime())[0];
-
+          const next = events.filter(e => !e.completed && e.dateTime > now).sort((a, b) => a.dateTime.getTime() - b.dateTime.getTime())[0];
           if (!next) return null;
-
           const diff = next.dateTime.getTime() - now.getTime();
           const days = Math.floor(diff / (1000 * 60 * 60 * 24));
           const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
           const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-
-          const timeLabel =
-            days > 1 ? `em ${days} dias` :
-              days === 1 ? `amanhã` :
-                hours > 0 ? `em ${hours}h${mins > 0 ? ` ${mins}min` : ""}` :
-                  `em ${mins} min`;
-
+          const timeLabel = days > 1 ? `em ${days} dias` : days === 1 ? `amanhã` : hours > 0 ? `em ${hours}h${mins > 0 ? ` ${mins}min` : ""}` : `em ${mins} min`;
           return (
             <div className="mx-4 mb-3 mt-1 px-3 py-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/40 rounded-lg">
-              <p className="text-xs text-blue-500 dark:text-blue-400 font-semibold mb-1">
-                Próximo · {timeLabel}
-              </p>
-              <p className="text-sm font-bold text-blue-700 dark:text-blue-200 truncate">
-                {next.title}
-              </p>
+              <p className="text-xs text-blue-500 dark:text-blue-400 font-semibold mb-1">Próximo · {timeLabel}</p>
+              <p className="text-sm font-bold text-blue-700 dark:text-blue-200 truncate">{next.title}</p>
               <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
                 {next.dateTime.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })} às {next.dateTime.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
               </p>
@@ -475,42 +545,27 @@ export default function Home() {
 
         <nav className="px-4 space-y-1 mb-3">
           {([["day", "Diário", LayoutListIcon], ["week", "Semanal", CalendarDaysIcon], ["month", "Mensal", CalendarMonthIcon]] as const).map(([view, label, Icon]) => (
-            <button
-              key={view}
-              onClick={() => setCurrentView(view)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${currentView === view
-                ? "bg-blue-50 text-blue-600 dark:bg-gray-700 dark:text-blue-400"
-                : "text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-700"
-                }`}
-            >
+            <button key={view} onClick={() => setCurrentView(view)}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${currentView === view ? "bg-blue-50 text-blue-600 dark:bg-gray-700 dark:text-blue-400" : "text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-700"}`}>
               <Icon className="w-5 h-5" />
               <span className="font-medium">{label}</span>
             </button>
           ))}
         </nav>
 
-        {/* Mini Calendário */}
         <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700">
-          <Calendar
-            mode="single"
-            selected={selectedDate}
+          <Calendar mode="single" selected={selectedDate}
             onSelect={(date) => { if (date) { setSelectedDate(date); setCurrentView("day"); } }}
             locale={ptBR}
-            className="rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-700/50 w-full [&_table]:w-full [&_td]:p-0 [&_th]:p-0 [&_button]:w-full [&_button]:text-xs [&_.rdp-caption_label]:text-xs [&_.rdp-nav_button]:h-6 [&_.rdp-nav_button]:w-6"
-          />
+            className="rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-700/50 w-full [&_table]:w-full [&_td]:p-0 [&_th]:p-0 [&_button]:w-full [&_button]:text-xs [&_.rdp-caption_label]:text-xs [&_.rdp-nav_button]:h-6 [&_.rdp-nav_button]:w-6" />
         </div>
 
-        {/* Toggle de Tema */}
         <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-          <button
-            onClick={toggleTheme}
-            className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
-          >
+          <button onClick={toggleTheme}
+            className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
             <div className="flex items-center gap-3">
               {isDarkMode ? <SunIcon className="w-5 h-5 text-yellow-500" /> : <MoonIcon className="w-5 h-5 text-gray-600 dark:text-gray-400" />}
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                {isDarkMode ? "Tema Claro" : "Tema Escuro"}
-              </span>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{isDarkMode ? "Tema Claro" : "Tema Escuro"}</span>
             </div>
             <div className={`w-10 h-5 rounded-full transition-colors ${isDarkMode ? "bg-blue-500" : "bg-gray-300 dark:bg-gray-600"}`}>
               <div className={`w-4 h-4 rounded-full bg-white transition-transform mt-0.5 ${isDarkMode ? "translate-x-5" : "translate-x-0.5"}`} />
@@ -522,7 +577,6 @@ export default function Home() {
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-6xl mx-auto p-8">
-          {/* Header */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6 dark:bg-gray-800 dark:border-gray-700">
             <div className="flex items-center justify-between">
               <button onClick={() => navigateDate("prev")} className="p-2 hover:bg-gray-100 rounded-lg transition-colors dark:hover:bg-gray-700 dark:text-gray-300">←</button>
@@ -533,15 +587,21 @@ export default function Home() {
 
           {/* View Semanal */}
           {currentView === "week" && (
-            <WeekGrid
+            <WeekGrid events={filteredEvents} selectedDate={selectedDate} onEventClick={openEditFromWeek} />
+          )}
+
+          {/* View Mensal */}
+          {currentView === "month" && (
+            <MonthGrid
               events={filteredEvents}
               selectedDate={selectedDate}
+              onDayClick={(date) => { setSelectedDate(date); setCurrentView("day"); }}
               onEventClick={openEditFromWeek}
             />
           )}
 
-          {/* View Diária e Mensal */}
-          {currentView !== "week" && (
+          {/* View Diária */}
+          {currentView === "day" && (
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 dark:bg-gray-800 dark:border-gray-700">
               {filteredEvents.length === 0 ? (
                 <div className="text-center py-12">
@@ -549,16 +609,10 @@ export default function Home() {
                     <CalendarMonthIcon className="w-10 h-10 text-gray-400 dark:text-gray-500" />
                   </div>
                   <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Nenhum compromisso</h3>
-                  <p className="text-gray-500 dark:text-gray-400 mb-4">
-                    {currentView === "day" && "para este dia"}
-                    {currentView === "month" && "para este mês"}
-                  </p>
-                  <button
-                    onClick={openCreateModal}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-                  >
-                    <PlusIcon className="w-4 h-4" />
-                    Adicionar Compromisso
+                  <p className="text-gray-500 dark:text-gray-400 mb-4">para este dia</p>
+                  <button onClick={() => openCreateModal(selectedDate)}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+                    <PlusIcon className="w-4 h-4" />Adicionar Compromisso
                   </button>
                 </div>
               ) : (
@@ -577,16 +631,12 @@ export default function Home() {
                             <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 flex items-center gap-1 flex-wrap">
                               <span>{event.dateTime.toLocaleDateString("pt-BR", { day: "2-digit", month: "long" })}</span>
                               <span>•</span>
-                              <span className="flex items-center gap-1">
-                                <ClockIcon className="w-3 h-3" />
-                                {formatTime(event.dateTime)}
-                              </span>
+                              <span className="flex items-center gap-1"><ClockIcon className="w-3 h-3" />{formatTime(event.dateTime)}</span>
                               {event.category && (
                                 <>
                                   <span>•</span>
-                                  <span className="flex items-center gap-1 px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full">
-                                    <TagIcon className="w-3 h-3" />
-                                    {event.category}
+                                  <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full ${getCategoryColor(event.category)}`}>
+                                    <TagIcon className="w-3 h-3" />{event.category}
                                   </span>
                                 </>
                               )}
@@ -594,21 +644,7 @@ export default function Home() {
                           </div>
                         </div>
                         <div className="flex gap-1">
-                          <button
-                            onClick={() => {
-                              setEditingEvent(event);
-                              setEditTitle(event.title);
-                              setEditDateTime(event.dateTime);
-                              const hours = event.dateTime.getHours().toString().padStart(2, "0");
-                              const minutes = event.dateTime.getMinutes().toString().padStart(2, "0");
-                              setEditTime(`${hours}:${minutes}`);
-                              setEditReminder(event.reminder || false);
-                              setEditRepeat(event.repeat || "none");
-                              setEditCategory(event.category || "");
-                              setEditDescription(event.description || "");
-                            }}
-                            className="text-gray-400 hover:text-yellow-500 p-2 rounded-lg transition-colors"
-                          >
+                          <button onClick={() => openEditFromWeek(event)} className="text-gray-400 hover:text-yellow-500 p-2 rounded-lg transition-colors">
                             <PencilIcon className="w-4 h-4" />
                           </button>
                           <button onClick={() => setEventToDelete(event.id)} className="text-gray-400 hover:text-red-500 p-2 rounded-lg transition-colors">
@@ -696,7 +732,7 @@ export default function Home() {
           <div className="bg-white dark:bg-gray-800 rounded-xl max-w-4xl w-full p-6 shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200">Editar Compromisso</h2>
-              <button onClick={() => setEditingEvent(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray:300 transition-colors">
+              <button onClick={() => setEditingEvent(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
                 <XIcon className="w-5 h-5" />
               </button>
             </div>
@@ -755,14 +791,11 @@ export default function Home() {
         </div>
       )}
 
-      {/* Dialog de confirmação de remoção */}
       <Dialog open={eventToDelete !== null} onOpenChange={() => setEventToDelete(null)}>
         <DialogContent className="dark:bg-gray-800">
           <DialogHeader>
             <DialogTitle>Remover compromisso</DialogTitle>
-            <DialogDescription>
-              Tem certeza que deseja remover este compromisso? Esta ação não pode ser desfeita.
-            </DialogDescription>
+            <DialogDescription>Tem certeza que deseja remover este compromisso? Esta ação não pode ser desfeita.</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <button onClick={() => setEventToDelete(null)} className="flex-1 px-4 py-2 border border-gray-200 dark:border-gray-600 dark:bg-gray-700 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">Cancelar</button>
