@@ -129,7 +129,7 @@ function CategorySelector({
   );
 }
 
-// Grade semanal estilo Google Calendar
+// Grade semanal
 function WeekGrid({
   events,
   selectedDate,
@@ -391,9 +391,6 @@ export default function Home() {
   }
 
   const filteredEvents = getFilteredEvents();
-  const totalEvents = events.length;
-  const completedEvents = events.filter(e => e.completed).length;
-  const pendingEvents = totalEvents - completedEvents;
 
   function getMonthName(month: number) {
     return ["Janeiro", "Fevereiro", "Marco", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"][month];
@@ -424,7 +421,7 @@ export default function Home() {
   return (
     <div className="flex h-screen bg-gray-100 dark:bg-gray-900">
       {/* Sidebar */}
-      <aside className="w-72 bg-white shadow-lg flex flex-col dark:bg-gray-800">
+      <aside className="w-72 bg-white shadow-lg flex flex-col dark:bg-gray-800 overflow-y-auto">
         <div className="p-6 border-b border-gray-200 dark:border-gray-700">
           <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent dark:text-white">
             Smartplanix
@@ -442,7 +439,41 @@ export default function Home() {
           </button>
         </div>
 
-        <nav className="px-4 space-y-1">
+        {(() => {
+          const now = new Date();
+          const next = events
+            .filter(e => !e.completed && e.dateTime > now)
+            .sort((a, b) => a.dateTime.getTime() - b.dateTime.getTime())[0];
+
+          if (!next) return null;
+
+          const diff = next.dateTime.getTime() - now.getTime();
+          const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+          const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+          const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+          const timeLabel =
+            days > 1 ? `em ${days} dias` :
+              days === 1 ? `amanhã` :
+                hours > 0 ? `em ${hours}h${mins > 0 ? ` ${mins}min` : ""}` :
+                  `em ${mins} min`;
+
+          return (
+            <div className="mx-4 mb-3 mt-1 px-3 py-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/40 rounded-lg">
+              <p className="text-xs text-blue-500 dark:text-blue-400 font-semibold mb-1">
+                Próximo · {timeLabel}
+              </p>
+              <p className="text-sm font-bold text-blue-700 dark:text-blue-200 truncate">
+                {next.title}
+              </p>
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                {next.dateTime.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })} às {next.dateTime.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+              </p>
+            </div>
+          );
+        })()}
+
+        <nav className="px-4 space-y-1 mb-3">
           {([["day", "Diário", LayoutListIcon], ["week", "Semanal", CalendarDaysIcon], ["month", "Mensal", CalendarMonthIcon]] as const).map(([view, label, Icon]) => (
             <button
               key={view}
@@ -459,7 +490,7 @@ export default function Home() {
         </nav>
 
         {/* Mini Calendário */}
-        <div className="px-4 py-2">
+        <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700">
           <Calendar
             mode="single"
             selected={selectedDate}
@@ -467,30 +498,6 @@ export default function Home() {
             locale={ptBR}
             className="rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-700/50 w-full [&_table]:w-full [&_td]:p-0 [&_th]:p-0 [&_button]:w-full [&_button]:text-xs [&_.rdp-caption_label]:text-xs [&_.rdp-nav_button]:h-6 [&_.rdp-nav_button]:w-6"
           />
-        </div>
-
-        {/* Estatísticas */}
-        <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-          <div className="bg-gray-50 rounded-xl p-4 dark:bg-gray-700">
-            <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">Resumo</p>
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500 dark:text-gray-400">Total</span>
-                <span className="font-semibold text-gray-700 dark:text-gray-200">{totalEvents}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-green-600 dark:text-green-400">Concluídos</span>
-                <span className="font-semibold text-green-600 dark:text-green-400">{completedEvents}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-yellow-600 dark:text-yellow-400">Pendentes</span>
-                <span className="font-semibold text-yellow-600 dark:text-yellow-400">{pendingEvents}</span>
-              </div>
-              <div className="h-2 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden mt-2">
-                <div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${totalEvents ? (completedEvents / totalEvents) * 100 : 0}%` }} />
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Toggle de Tema */}
