@@ -1,39 +1,23 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useTheme } from "next-themes";
 import { Calendar } from "@/components/ui/calendar";
-import { useNotifications } from "./hooks/useNotifications";
+import { useNotifications } from "@/app/hooks/useNotifications";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+  Dialog, DialogContent, DialogDescription,
+  DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
+  Popover, PopoverContent, PopoverTrigger,
 } from "@/components/ui/popover";
 import {
-  PlusIcon,
-  PencilIcon,
-  TrashIcon,
-  CheckCircleIcon,
-  CircleIcon,
-  ClockIcon,
-  XIcon,
-  FileTextIcon,
-  TagIcon,
-  LayoutListIcon,
-  CalendarDaysIcon,
-  CalendarIcon as CalendarMonthIcon,
-  SunIcon,
-  MoonIcon,
+  PlusIcon, TrashIcon, ClockIcon, XIcon, FileTextIcon, LayoutListIcon,
+  CalendarDaysIcon, CalendarIcon as CalendarMonthIcon,
+  SunIcon, MoonIcon, ListTodoIcon,
 } from "lucide-react";
 
 interface EventType {
@@ -66,9 +50,7 @@ function getCategoryColor(category?: string) {
   return CATEGORY_COLORS[category] || "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300";
 }
 
-function CategorySelector({
-  value, onChange, customCategories, onAddCategory,
-}: {
+function CategorySelector({ value, onChange, customCategories, onAddCategory }: {
   value: string; onChange: (cat: string) => void;
   customCategories: string[]; onAddCategory: (cat: string) => void;
 }) {
@@ -117,38 +99,15 @@ function CategorySelector({
   );
 }
 
-// Modal unificado de criar/editar
-function EventModal({
-  mode,
-  isOpen,
-  onClose,
-  onSubmit,
-  title, setTitle,
-  dateTime, setDateTime,
-  time, setTime,
-  reminder, setReminder,
-  repeat, setRepeat,
-  category, setCategory,
-  description, setDescription,
-  customCategories,
-  onAddCategory,
-}: {
-  mode: "create" | "edit";
-  isOpen: boolean;
-  onClose: () => void;
-  onSubmit: () => void;
-  title: string; setTitle: (v: string) => void;
-  dateTime: Date; setDateTime: (v: Date) => void;
-  time: string; setTime: (v: string) => void;
-  reminder: boolean; setReminder: (v: boolean) => void;
+function EventModal({ mode, isOpen, onClose, onSubmit, title, setTitle, dateTime, setDateTime, time, setTime, reminder, setReminder, repeat, setRepeat, category, setCategory, description, setDescription, customCategories, onAddCategory }: {
+  mode: "create" | "edit"; isOpen: boolean; onClose: () => void; onSubmit: () => void;
+  title: string; setTitle: (v: string) => void; dateTime: Date; setDateTime: (v: Date) => void;
+  time: string; setTime: (v: string) => void; reminder: boolean; setReminder: (v: boolean) => void;
   repeat: "none" | "daily" | "weekly" | "monthly"; setRepeat: (v: "none" | "daily" | "weekly" | "monthly") => void;
-  category: string; setCategory: (v: string) => void;
-  description: string; setDescription: (v: string) => void;
-  customCategories: string[];
-  onAddCategory: (cat: string) => void;
+  category: string; setCategory: (v: string) => void; description: string; setDescription: (v: string) => void;
+  customCategories: string[]; onAddCategory: (cat: string) => void;
 }) {
   if (!isOpen) return null;
-
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-gray-800 rounded-xl max-w-4xl w-full p-6 shadow-xl max-h-[90vh] overflow-y-auto">
@@ -160,25 +119,20 @@ function EventModal({
             <XIcon className="w-5 h-5" />
           </button>
         </div>
-
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Titulo</label>
               <input type="text" placeholder="Digite o titulo do compromisso" value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && onSubmit()}
-                className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
-                autoFocus />
+                onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && onSubmit()}
+                className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white" autoFocus />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Data</label>
-              <Calendar mode="single" selected={dateTime}
-                onSelect={(date) => date && setDateTime(date)}
+              <Calendar mode="single" selected={dateTime} onSelect={(date) => date && setDateTime(date)}
                 locale={ptBR} className="rounded-md border dark:bg-gray-700 dark:border-gray-600 w-full" />
             </div>
           </div>
-
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Horario</label>
@@ -207,8 +161,7 @@ function EventModal({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Categoria</label>
-              <CategorySelector value={category} onChange={setCategory}
-                customCategories={customCategories} onAddCategory={onAddCategory} />
+              <CategorySelector value={category} onChange={setCategory} customCategories={customCategories} onAddCategory={onAddCategory} />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Descricao</label>
@@ -221,17 +174,97 @@ function EventModal({
             </div>
           </div>
         </div>
-
         <div className="flex gap-3 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
-          <button onClick={onClose}
-            className="flex-1 px-4 py-2 border border-gray-200 dark:border-gray-600 dark:bg-gray-700 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
-            Cancelar
-          </button>
-          <button onClick={onSubmit}
-            className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+          <button onClick={onClose} className="flex-1 px-4 py-2 border border-gray-200 dark:border-gray-600 dark:bg-gray-700 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">Cancelar</button>
+          <button onClick={onSubmit} className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
             {mode === "create" ? "Adicionar" : "Salvar"}
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function DayGrid({ events, selectedDate, onEventClick }: {
+  events: EventType[]; selectedDate: Date; onEventClick: (event: EventType) => void;
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const today = new Date();
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = 8 * 56;
+  }, [selectedDate]);
+
+  function getEventsForHour(hour: number) {
+    return events.filter(e => e.dateTime.getHours() === hour);
+  }
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+      <div className="flex border-b border-gray-100 dark:border-gray-700 p-4 items-center gap-3">
+        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg ${selectedDate.toDateString() === today.toDateString() ? "bg-blue-500 text-white" : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200"}`}>
+          {selectedDate.getDate()}
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-gray-700 dark:text-gray-200 capitalize">
+            {selectedDate.toLocaleDateString("pt-BR", { weekday: "long" })}
+          </p>
+          <p className="text-xs text-gray-400 dark:text-gray-500">
+            {events.length} {events.length === 1 ? "compromisso" : "compromissos"}
+          </p>
+        </div>
+      </div>
+      <div ref={scrollRef} className="overflow-y-auto max-h-[600px]">
+        {HOURS.map((hour) => {
+          const hourEvents = getEventsForHour(hour);
+          return (
+            <div key={hour} className="flex border-b border-gray-50 dark:border-gray-700/50 min-h-[56px]">
+              <div className="w-20 shrink-0 text-xs text-gray-400 dark:text-gray-500 border-r border-gray-100 dark:border-gray-700 text-right pr-3 pt-2">
+                {hour.toString().padStart(2, "0")}:00
+              </div>
+              <div className="flex-1 p-1">
+                {hourEvents.map((event) => (
+                  <Popover key={event.id}>
+                    <PopoverTrigger asChild>
+                      <button className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium mb-1 transition-opacity hover:opacity-80 ${event.completed ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 line-through" : getCategoryColor(event.category)}`}>
+                        <span className="block font-semibold">{event.title}</span>
+                        <span className="opacity-70 flex items-center gap-1 mt-0.5">
+                          <ClockIcon className="w-3 h-3" />
+                          {event.dateTime.getHours().toString().padStart(2, "0")}:{event.dateTime.getMinutes().toString().padStart(2, "0")}
+                          {event.category && ` · ${event.category}`}
+                        </span>
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-72 p-0 dark:bg-gray-800 dark:border-gray-700" align="start">
+                      <div className="p-3 border-b border-gray-100 dark:border-gray-700">
+                        <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                          {event.dateTime.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}
+                        </p>
+                      </div>
+                      <div className="p-2">
+                        <button onClick={() => onEventClick(event)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full shrink-0 ${getCategoryColor(event.category).split(" ")[0]}`} />
+                            <p className={`text-sm font-medium flex-1 truncate ${event.completed ? "line-through text-gray-400 dark:text-gray-500" : "text-gray-700 dark:text-gray-200"}`}>{event.title}</p>
+                          </div>
+                          <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 pl-4">
+                            {event.dateTime.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                            {event.category && ` · ${event.category}`}
+                          </p>
+                        </button>
+                      </div>
+                      <div className="p-2 border-t border-gray-100 dark:border-gray-700">
+                        <button onClick={() => onEventClick(event)} className="w-full text-xs text-blue-500 hover:text-blue-600 dark:text-blue-400 py-1 transition-colors">
+                          Editar compromisso →
+                        </button>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -288,9 +321,7 @@ function WeekGrid({ events, selectedDate, onEventClick }: {
                   {dayEvents.map((event) => (
                     <Popover key={event.id}>
                       <PopoverTrigger asChild>
-                        <button className={`w-full text-left px-2 py-1 rounded-md text-xs font-medium mb-1 transition-opacity hover:opacity-80 ${event.completed
-                          ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 line-through"
-                          : getCategoryColor(event.category)}`}>
+                        <button className={`w-full text-left px-2 py-1 rounded-md text-xs font-medium mb-1 transition-opacity hover:opacity-80 ${event.completed ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 line-through" : getCategoryColor(event.category)}`}>
                           <span className="block truncate">{event.title}</span>
                           <span className="text-xs opacity-70">
                             {event.dateTime.getHours().toString().padStart(2, "0")}:{event.dateTime.getMinutes().toString().padStart(2, "0")}
@@ -304,13 +335,10 @@ function WeekGrid({ events, selectedDate, onEventClick }: {
                           </p>
                         </div>
                         <div className="p-2 space-y-1 max-h-64 overflow-y-auto">
-                          <button onClick={() => onEventClick(event)}
-                            className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                          <button onClick={() => onEventClick(event)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                             <div className="flex items-center gap-2">
                               <div className={`w-2 h-2 rounded-full shrink-0 ${getCategoryColor(event.category).split(" ")[0]}`} />
-                              <p className={`text-sm font-medium flex-1 truncate ${event.completed ? "line-through text-gray-400 dark:text-gray-500" : "text-gray-700 dark:text-gray-200"}`}>
-                                {event.title}
-                              </p>
+                              <p className={`text-sm font-medium flex-1 truncate ${event.completed ? "line-through text-gray-400 dark:text-gray-500" : "text-gray-700 dark:text-gray-200"}`}>{event.title}</p>
                             </div>
                             <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 pl-4">
                               {event.dateTime.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
@@ -319,8 +347,7 @@ function WeekGrid({ events, selectedDate, onEventClick }: {
                           </button>
                         </div>
                         <div className="p-2 border-t border-gray-100 dark:border-gray-700">
-                          <button onClick={() => onEventClick(event)}
-                            className="w-full text-xs text-blue-500 hover:text-blue-600 dark:text-blue-400 py-1 transition-colors">
+                          <button onClick={() => onEventClick(event)} className="w-full text-xs text-blue-500 hover:text-blue-600 dark:text-blue-400 py-1 transition-colors">
                             Editar compromisso →
                           </button>
                         </div>
@@ -381,19 +408,13 @@ function MonthGrid({ events, selectedDate, onDayClick, onEventClick }: {
           return (
             <Popover key={date.toISOString()}>
               <PopoverTrigger asChild>
-                <div
-                  onClick={() => !hasEvents && onDayClick(date)}
-                  className={`min-h-[120px] border-b border-r border-gray-100 dark:border-gray-700/50 p-2 cursor-pointer transition-colors hover:bg-blue-50/50 dark:hover:bg-blue-900/10 ${isSelected ? "bg-blue-50 dark:bg-blue-900/20" : ""}`}
-                >
+                <div onClick={() => !hasEvents && onDayClick(date)}
+                  className={`min-h-[120px] border-b border-r border-gray-100 dark:border-gray-700/50 p-2 cursor-pointer transition-colors hover:bg-blue-50/50 dark:hover:bg-blue-900/10 ${isSelected ? "bg-blue-50 dark:bg-blue-900/20" : ""}`}>
                   <div className="flex items-center justify-between mb-2">
                     <span className={`text-lg font-bold leading-none ${isToday ? "w-8 h-8 flex items-center justify-center rounded-full bg-blue-500 text-white text-base" : isCurrentMonth ? "text-gray-800 dark:text-gray-100" : "text-gray-300 dark:text-gray-600"}`}>
                       {date.getDate()}
                     </span>
-                    {hasEvents && (
-                      <span className="text-xs text-gray-400 dark:text-gray-500">
-                        {dayEvents.length} {dayEvents.length === 1 ? "compromisso" : "compromissos"}
-                      </span>
-                    )}
+                    {hasEvents && <span className="text-xs text-gray-400 dark:text-gray-500">{dayEvents.length} {dayEvents.length === 1 ? "compromisso" : "compromissos"}</span>}
                   </div>
                   <div className="space-y-1">
                     {dayEvents.slice(0, maxVisible).map((event) => (
@@ -414,13 +435,10 @@ function MonthGrid({ events, selectedDate, onDayClick, onEventClick }: {
                   </div>
                   <div className="p-2 space-y-1 max-h-64 overflow-y-auto">
                     {dayEvents.map((event) => (
-                      <button key={event.id} onClick={() => onEventClick(event)}
-                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                      <button key={event.id} onClick={() => onEventClick(event)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                         <div className="flex items-center gap-2">
                           <div className={`w-2 h-2 rounded-full shrink-0 ${getCategoryColor(event.category).split(" ")[0]}`} />
-                          <p className={`text-sm font-medium flex-1 truncate ${event.completed ? "line-through text-gray-400 dark:text-gray-500" : "text-gray-700 dark:text-gray-200"}`}>
-                            {event.title}
-                          </p>
+                          <p className={`text-sm font-medium flex-1 truncate ${event.completed ? "line-through text-gray-400 dark:text-gray-500" : "text-gray-700 dark:text-gray-200"}`}>{event.title}</p>
                         </div>
                         <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 pl-4">
                           {event.dateTime.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
@@ -430,8 +448,7 @@ function MonthGrid({ events, selectedDate, onDayClick, onEventClick }: {
                     ))}
                   </div>
                   <div className="p-2 border-t border-gray-100 dark:border-gray-700">
-                    <button onClick={() => onDayClick(date)}
-                      className="w-full text-xs text-blue-500 hover:text-blue-600 dark:text-blue-400 py-1 transition-colors">
+                    <button onClick={() => onDayClick(date)} className="w-full text-xs text-blue-500 hover:text-blue-600 dark:text-blue-400 py-1 transition-colors">
                       Ver dia completo →
                     </button>
                   </div>
@@ -445,15 +462,15 @@ function MonthGrid({ events, selectedDate, onDayClick, onEventClick }: {
   );
 }
 
-export default function Home() {
+function HomeContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [events, setEvents] = useState<EventType[]>([]);
   const { scheduleNotification } = useNotifications();
   const [currentView, setCurrentView] = useState<ViewType>("day");
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [eventToDelete, setEventToDelete] = useState<number | null>(null);
   const [customCategories, setCustomCategories] = useState<string[]>([]);
-
-  // Estados do modal unificado
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "edit">("create");
   const [editingEventId, setEditingEventId] = useState<number | null>(null);
@@ -464,7 +481,7 @@ export default function Home() {
   const [formRepeat, setFormRepeat] = useState<"none" | "daily" | "weekly" | "monthly">("none");
   const [formCategory, setFormCategory] = useState("");
   const [formDescription, setFormDescription] = useState("");
-
+  const [loaded, setLoaded] = useState(false);
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
@@ -473,25 +490,30 @@ export default function Home() {
   const toggleTheme = () => setTheme(isDarkMode ? "light" : "dark");
 
   useEffect(() => {
+    const view = searchParams.get("view");
+    if (view === "week" || view === "month" || view === "day") setCurrentView(view);
+  }, [searchParams]);
+
+  useEffect(() => {
     const saved = localStorage.getItem("events");
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      setEvents(parsed.map((e: any) => ({ ...e, dateTime: new Date(e.dateTime) })));
-    }
+    if (saved) setEvents(JSON.parse(saved).map((e: any) => ({ ...e, dateTime: new Date(e.dateTime) })));
+    setLoaded(true);
   }, []);
 
-  useEffect(() => { localStorage.setItem("events", JSON.stringify(events)); }, [events]);
+  useEffect(() => {
+    if (loaded) localStorage.setItem("events", JSON.stringify(events));
+  }, [events, loaded]);
 
   useEffect(() => {
     const saved = localStorage.getItem("customCategories");
     if (saved) setCustomCategories(JSON.parse(saved));
   }, []);
 
-  useEffect(() => { localStorage.setItem("customCategories", JSON.stringify(customCategories)); }, [customCategories]);
+  useEffect(() => {
+    localStorage.setItem("customCategories", JSON.stringify(customCategories));
+  }, [customCategories]);
 
-  function handleAddCustomCategory(cat: string) {
-    setCustomCategories((prev) => [...prev, cat]);
-  }
+  function handleAddCustomCategory(cat: string) { setCustomCategories((prev) => [...prev, cat]); }
 
   function resetForm() {
     setFormTitle(""); setFormDateTime(new Date()); setFormTime("12:00");
@@ -509,9 +531,7 @@ export default function Home() {
   function openEditModal(event: EventType) {
     setFormTitle(event.title);
     setFormDateTime(event.dateTime);
-    const hours = event.dateTime.getHours().toString().padStart(2, "0");
-    const minutes = event.dateTime.getMinutes().toString().padStart(2, "0");
-    setFormTime(`${hours}:${minutes}`);
+    setFormTime(`${event.dateTime.getHours().toString().padStart(2, "0")}:${event.dateTime.getMinutes().toString().padStart(2, "0")}`);
     setFormReminder(event.reminder || false);
     setFormRepeat(event.repeat || "none");
     setFormCategory(event.category || "");
@@ -531,29 +551,16 @@ export default function Home() {
   function handleSubmit() {
     if (!formTitle.trim()) { toast.error("Digite um compromisso!"); return; }
     const finalDateTime = combineDateAndTime(formDateTime, formTime);
-
     if (modalMode === "create") {
-      const newEvent = {
-        id: Date.now(), title: formTitle, completed: false, dateTime: finalDateTime,
-        reminder: formReminder, repeat: formRepeat,
-        category: formCategory.trim() || undefined,
-        description: formDescription.trim() || undefined,
-      };
+      const newEvent = { id: Date.now(), title: formTitle, completed: false, dateTime: finalDateTime, reminder: formReminder, repeat: formRepeat, category: formCategory.trim() || undefined, description: formDescription.trim() || undefined };
       setEvents((prev) => [...prev, newEvent]);
       if (formReminder) scheduleNotification(formTitle, finalDateTime);
-      toast.success("Compromisso adicionado!", {
-        description: `${formTitle} - ${finalDateTime.toLocaleDateString("pt-BR")} as ${finalDateTime.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`,
-      });
+      toast.success("Compromisso adicionado!", { description: `${formTitle} - ${finalDateTime.toLocaleDateString("pt-BR")} as ${finalDateTime.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}` });
     } else {
-      setEvents((prev) => prev.map((e) =>
-        e.id === editingEventId
-          ? { ...e, title: formTitle, dateTime: finalDateTime, reminder: formReminder, repeat: formRepeat, category: formCategory.trim() || undefined, description: formDescription.trim() || undefined }
-          : e
-      ));
+      setEvents((prev) => prev.map((e) => e.id === editingEventId ? { ...e, title: formTitle, dateTime: finalDateTime, reminder: formReminder, repeat: formRepeat, category: formCategory.trim() || undefined, description: formDescription.trim() || undefined } : e));
       if (formReminder) scheduleNotification(formTitle, finalDateTime);
       toast.success("Compromisso editado!");
     }
-
     setModalOpen(false);
     resetForm();
     window.dispatchEvent(new Event('events-updated'));
@@ -571,25 +578,16 @@ export default function Home() {
     toast.warning("Compromisso removido!", { description: event?.title });
   }
 
-  function formatTime(date: Date): string {
-    return date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-  }
-
   function getFilteredEvents() {
-    if (currentView === "day") {
-      return events.filter(e => e.dateTime.toDateString() === selectedDate.toDateString());
-    } else if (currentView === "week") {
+    if (currentView === "day") return events.filter(e => e.dateTime.toDateString() === selectedDate.toDateString());
+    if (currentView === "week") {
       const start = new Date(selectedDate);
       start.setDate(selectedDate.getDate() - selectedDate.getDay());
       const end = new Date(start);
       end.setDate(start.getDate() + 7);
       return events.filter(e => e.dateTime >= start && e.dateTime < end);
-    } else {
-      return events.filter(e =>
-        e.dateTime.getMonth() === selectedDate.getMonth() &&
-        e.dateTime.getFullYear() === selectedDate.getFullYear()
-      );
     }
+    return events.filter(e => e.dateTime.getMonth() === selectedDate.getMonth() && e.dateTime.getFullYear() === selectedDate.getFullYear());
   }
 
   const filteredEvents = getFilteredEvents();
@@ -607,17 +605,15 @@ export default function Home() {
   }
 
   function getViewTitle() {
-    if (currentView === "day") {
-      return selectedDate.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
-    } else if (currentView === "week") {
+    if (currentView === "day") return selectedDate.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
+    if (currentView === "week") {
       const start = new Date(selectedDate);
       start.setDate(selectedDate.getDate() - selectedDate.getDay());
       const end = new Date(start);
       end.setDate(start.getDate() + 6);
       return `${start.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })} - ${end.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" })}`;
-    } else {
-      return `${getMonthName(selectedDate.getMonth())} ${selectedDate.getFullYear()}`;
     }
+    return `${getMonthName(selectedDate.getMonth())} ${selectedDate.getFullYear()}`;
   }
 
   return (
@@ -629,8 +625,7 @@ export default function Home() {
         </div>
 
         <div className="p-4">
-          <button onClick={() => openCreateModal()}
-            className="w-full bg-blue-500 hover:bg-blue-600 text-white px-4 py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 shadow-sm">
+          <button onClick={() => openCreateModal()} className="w-full bg-blue-500 hover:bg-blue-600 text-white px-4 py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 shadow-sm">
             <PlusIcon className="w-5 h-5" />Novo Compromisso
           </button>
         </div>
@@ -663,6 +658,11 @@ export default function Home() {
               <span className="font-medium">{label}</span>
             </button>
           ))}
+          <button onClick={() => router.push("/tasks")}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-700">
+            <ListTodoIcon className="w-5 h-5" />
+            <span className="font-medium">Tarefas</span>
+          </button>
         </nav>
 
         <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700">
@@ -673,8 +673,7 @@ export default function Home() {
         </div>
 
         <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-          <button onClick={toggleTheme}
-            className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+          <button onClick={toggleTheme} className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
             <div className="flex items-center gap-3">
               {isDarkMode ? <SunIcon className="w-5 h-5 text-yellow-500" /> : <MoonIcon className="w-5 h-5 text-gray-600 dark:text-gray-400" />}
               <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{isDarkMode ? "Tema Claro" : "Tema Escuro"}</span>
@@ -696,82 +695,14 @@ export default function Home() {
             </div>
           </div>
 
-          {currentView === "week" && (
-            <WeekGrid events={filteredEvents} selectedDate={selectedDate} onEventClick={openEditModal} />
-          )}
-
-          {currentView === "month" && (
-            <MonthGrid
-              events={filteredEvents}
-              selectedDate={selectedDate}
-              onDayClick={(date) => { setSelectedDate(date); setCurrentView("day"); }}
-              onEventClick={openEditModal}
-            />
-          )}
-
-          {currentView === "day" && (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 dark:bg-gray-800 dark:border-gray-700">
-              {filteredEvents.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="w-20 h-20 mx-auto mb-4 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center">
-                    <CalendarMonthIcon className="w-10 h-10 text-gray-400 dark:text-gray-500" />
-                  </div>
-                  <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Nenhum compromisso</h3>
-                  <p className="text-gray-500 dark:text-gray-400 mb-4">para este dia</p>
-                  <button onClick={() => openCreateModal(selectedDate)}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
-                    <PlusIcon className="w-4 h-4" />Adicionar Compromisso
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {filteredEvents.map((event) => (
-                    <div key={event.id} className="bg-gray-50 rounded-xl p-4 hover:shadow-md transition-shadow dark:bg-gray-700">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-3 flex-1">
-                          <button onClick={() => toggleComplete(event.id)} className="text-gray-400 hover:text-green-500 transition-colors">
-                            {event.completed ? <CheckCircleIcon className="w-5 h-5 text-green-500" /> : <CircleIcon className="w-5 h-5" />}
-                          </button>
-                          <div className="flex-1">
-                            <p className={`font-medium ${event.completed ? "line-through text-gray-400 dark:text-gray-500" : "text-gray-700 dark:text-gray-200"}`}>
-                              {event.title}
-                            </p>
-                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 flex items-center gap-1 flex-wrap">
-                              <span>{event.dateTime.toLocaleDateString("pt-BR", { day: "2-digit", month: "long" })}</span>
-                              <span>•</span>
-                              <span className="flex items-center gap-1"><ClockIcon className="w-3 h-3" />{formatTime(event.dateTime)}</span>
-                              {event.category && (
-                                <>
-                                  <span>•</span>
-                                  <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full ${getCategoryColor(event.category)}`}>
-                                    <TagIcon className="w-3 h-3" />{event.category}
-                                  </span>
-                                </>
-                              )}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex gap-1">
-                          <button onClick={() => openEditModal(event)} className="text-gray-400 hover:text-yellow-500 p-2 rounded-lg transition-colors">
-                            <PencilIcon className="w-4 h-4" />
-                          </button>
-                          <button onClick={() => setEventToDelete(event.id)} className="text-gray-400 hover:text-red-500 p-2 rounded-lg transition-colors">
-                            <TrashIcon className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+          {currentView === "day" && <DayGrid events={filteredEvents} selectedDate={selectedDate} onEventClick={openEditModal} />}
+          {currentView === "week" && <WeekGrid events={filteredEvents} selectedDate={selectedDate} onEventClick={openEditModal} />}
+          {currentView === "month" && <MonthGrid events={filteredEvents} selectedDate={selectedDate} onDayClick={(date) => { setSelectedDate(date); setCurrentView("day"); }} onEventClick={openEditModal} />}
         </div>
       </main>
 
       <EventModal
-        mode={modalMode}
-        isOpen={modalOpen}
+        mode={modalMode} isOpen={modalOpen}
         onClose={() => { setModalOpen(false); resetForm(); }}
         onSubmit={handleSubmit}
         title={formTitle} setTitle={setFormTitle}
@@ -781,8 +712,7 @@ export default function Home() {
         repeat={formRepeat} setRepeat={setFormRepeat}
         category={formCategory} setCategory={setFormCategory}
         description={formDescription} setDescription={setFormDescription}
-        customCategories={customCategories}
-        onAddCategory={handleAddCustomCategory}
+        customCategories={customCategories} onAddCategory={handleAddCustomCategory}
       />
 
       <Dialog open={eventToDelete !== null} onOpenChange={() => setEventToDelete(null)}>
@@ -798,5 +728,13 @@ export default function Home() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={null}>
+      <HomeContent />
+    </Suspense>
   );
 }
