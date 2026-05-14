@@ -208,10 +208,11 @@ function NowLine({ isToday }: { isToday: boolean }) {
   );
 }
 
-function DayGrid({ events, selectedDate, onEventClick, onAddClick }: {
+function DayGrid({ events, selectedDate, onEventClick, onAddClick, onToggleComplete }: {
   events: EventType[]; selectedDate: Date;
   onEventClick: (event: EventType) => void;
   onAddClick: () => void;
+  onToggleComplete: (id: number) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const today = new Date();
@@ -266,27 +267,32 @@ function DayGrid({ events, selectedDate, onEventClick, onAddClick }: {
                           </span>
                         </button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-72 p-0 dark:bg-gray-800 dark:border-gray-700" align="start">
+                      <PopoverContent className="w-72 p-0 dark:bg-gray-800 dark:border-gray-700" align="start" sideOffset={5}>
                         <div className="p-3 border-b border-gray-100 dark:border-gray-700">
                           <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">
                             {event.dateTime.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}
                           </p>
                         </div>
-                        <div className="p-2">
-                          <button onClick={() => onEventClick(event)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                            <div className="flex items-center gap-2">
-                              <div className={`w-2 h-2 rounded-full shrink-0 ${getCategoryColor(event.category).split(" ")[0]}`} />
-                              <p className={`text-sm font-medium flex-1 truncate ${event.completed ? "line-through text-gray-400 dark:text-gray-500" : "text-gray-700 dark:text-gray-200"}`}>{event.title}</p>
-                            </div>
-                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 pl-4">
-                              {event.dateTime.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                              {event.category && ` · ${event.category}`}
-                            </p>
-                          </button>
+                        <div className="p-3">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full shrink-0 ${getCategoryColor(event.category).split(" ")[0]}`} />
+                            <p className={`text-sm font-medium flex-1 truncate ${event.completed ? "line-through text-gray-400 dark:text-gray-500" : "text-gray-700 dark:text-gray-200"}`}>{event.title}</p>
+                          </div>
+                          <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 pl-4">
+                            {event.dateTime.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                            {event.category && ` · ${event.category}`}
+                          </p>
                         </div>
-                        <div className="p-2 border-t border-gray-100 dark:border-gray-700">
-                          <button onClick={() => onEventClick(event)} className="w-full text-xs text-blue-500 hover:text-blue-600 dark:text-blue-400 py-1 transition-colors">
-                            Editar compromisso →
+                        <div className="p-2 border-t border-gray-100 dark:border-gray-700 flex gap-1">
+                          <button
+                            onClick={() => onToggleComplete(event.id)}
+                            className={`flex-1 text-xs py-1.5 rounded-md transition-colors ${event.completed ? "text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700" : "text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20"}`}>
+                            {event.completed ? "↩ Pendente" : "✓ Concluído"}
+                          </button>
+                          <div className="w-px bg-gray-100 dark:bg-gray-700" />
+                          <button onClick={() => onEventClick(event)}
+                            className="flex-1 text-xs text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 py-1.5 rounded-md transition-colors">
+                            Editar →
                           </button>
                         </div>
                       </PopoverContent>
@@ -303,8 +309,8 @@ function DayGrid({ events, selectedDate, onEventClick, onAddClick }: {
   );
 }
 
-function WeekGrid({ events, selectedDate, onEventClick }: {
-  events: EventType[]; selectedDate: Date; onEventClick: (event: EventType) => void;
+function WeekGrid({ events, selectedDate, onEventClick, onToggleComplete }: {
+  events: EventType[]; selectedDate: Date; onEventClick: (event: EventType) => void; onToggleComplete: (id: number) => void;
 }) {
   const startOfWeek = new Date(selectedDate);
   startOfWeek.setDate(selectedDate.getDate() - selectedDate.getDay());
@@ -368,7 +374,7 @@ function WeekGrid({ events, selectedDate, onEventClick }: {
                               {event.dateTime.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}
                             </p>
                           </div>
-                          <div className="p-2 space-y-1 max-h-64 overflow-y-auto">
+                          <div className="p-2">
                             <button onClick={() => onEventClick(event)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                               <div className="flex items-center gap-2">
                                 <div className={`w-2 h-2 rounded-full shrink-0 ${getCategoryColor(event.category).split(" ")[0]}`} />
@@ -380,9 +386,16 @@ function WeekGrid({ events, selectedDate, onEventClick }: {
                               </p>
                             </button>
                           </div>
-                          <div className="p-2 border-t border-gray-100 dark:border-gray-700">
-                            <button onClick={() => onEventClick(event)} className="w-full text-xs text-blue-500 hover:text-blue-600 dark:text-blue-400 py-1 transition-colors">
-                              Editar compromisso →
+                          <div className="p-2 border-t border-gray-100 dark:border-gray-700 flex gap-1">
+                            <button
+                              onClick={() => onToggleComplete(event.id)}
+                              className={`flex-1 text-xs py-1.5 rounded-md transition-colors ${event.completed ? "text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700" : "text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20"}`}>
+                              {event.completed ? "↩ Pendente" : "✓ Concluído"}
+                            </button>
+                            <div className="w-px bg-gray-100 dark:bg-gray-700" />
+                            <button onClick={() => onEventClick(event)}
+                              className="flex-1 text-xs text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 py-1.5 rounded-md transition-colors">
+                              Editar →
                             </button>
                           </div>
                         </PopoverContent>
@@ -765,8 +778,8 @@ function HomeContent() {
             </div>
           </div>
 
-          {currentView === "day" && <DayGrid events={filteredEvents} selectedDate={selectedDate} onEventClick={openEditModal} onAddClick={() => openCreateModal(selectedDate)} />}
-          {currentView === "week" && <WeekGrid events={filteredEvents} selectedDate={selectedDate} onEventClick={openEditModal} />}
+          {currentView === "day" && <DayGrid events={filteredEvents} selectedDate={selectedDate} onEventClick={openEditModal} onAddClick={() => openCreateModal(selectedDate)} onToggleComplete={toggleComplete} />}
+          {currentView === "week" && <WeekGrid events={filteredEvents} selectedDate={selectedDate} onEventClick={openEditModal} onToggleComplete={toggleComplete} />}
           {currentView === "month" && <MonthGrid events={filteredEvents} selectedDate={selectedDate} onDayClick={(date) => { setSelectedDate(date); setCurrentView("day"); }} onEventClick={openEditModal} />}
         </div>
       </main>
