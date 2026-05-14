@@ -185,11 +185,37 @@ function EventModal({ mode, isOpen, onClose, onSubmit, title, setTitle, dateTime
   );
 }
 
-function DayGrid({ events, selectedDate, onEventClick }: {
-  events: EventType[]; selectedDate: Date; onEventClick: (event: EventType) => void;
+function NowLine({ isToday }: { isToday: boolean }) {
+  const [now, setNow] = useState(new Date());
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (!isToday) return null;
+
+  const minutes = now.getHours() * 60 + now.getMinutes();
+  const top = (minutes / 60) * 56; // 56px por hora
+
+  return (
+    <div className="absolute left-0 right-0 z-10 pointer-events-none" style={{ top: `${top}px` }}>
+      <div className="flex items-center">
+        <div className="w-2 h-2 rounded-full bg-red-500 -ml-1 shrink-0" />
+        <div className="flex-1 h-px bg-red-500" />
+      </div>
+    </div>
+  );
+}
+
+function DayGrid({ events, selectedDate, onEventClick, onAddClick }: {
+  events: EventType[]; selectedDate: Date;
+  onEventClick: (event: EventType) => void;
+  onAddClick: () => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const today = new Date();
+  const isToday = selectedDate.toDateString() === today.toDateString();
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = 8 * 56;
@@ -202,10 +228,10 @@ function DayGrid({ events, selectedDate, onEventClick }: {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
       <div className="flex border-b border-gray-100 dark:border-gray-700 p-4 items-center gap-3">
-        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg ${selectedDate.toDateString() === today.toDateString() ? "bg-blue-500 text-white" : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200"}`}>
+        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg ${isToday ? "bg-blue-500 text-white" : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200"}`}>
           {selectedDate.getDate()}
         </div>
-        <div>
+        <div className="flex-1">
           <p className="text-sm font-semibold text-gray-700 dark:text-gray-200 capitalize">
             {selectedDate.toLocaleDateString("pt-BR", { weekday: "long" })}
           </p>
@@ -213,58 +239,65 @@ function DayGrid({ events, selectedDate, onEventClick }: {
             {events.length} {events.length === 1 ? "compromisso" : "compromissos"}
           </p>
         </div>
+        <button onClick={onAddClick}
+          className="w-8 h-8 flex items-center justify-center rounded-full bg-blue-500 hover:bg-blue-600 text-white transition-colors shadow-sm">
+          <PlusIcon className="w-4 h-4" />
+        </button>
       </div>
       <div ref={scrollRef} className="overflow-y-auto max-h-[600px]">
-        {HOURS.map((hour) => {
-          const hourEvents = getEventsForHour(hour);
-          return (
-            <div key={hour} className="flex border-b border-gray-50 dark:border-gray-700/50 min-h-[56px]">
-              <div className="w-20 shrink-0 text-xs text-gray-400 dark:text-gray-500 border-r border-gray-100 dark:border-gray-700 text-right pr-3 pt-2">
-                {hour.toString().padStart(2, "0")}:00
-              </div>
-              <div className="flex-1 p-1">
-                {hourEvents.map((event) => (
-                  <Popover key={event.id}>
-                    <PopoverTrigger asChild>
-                      <button className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium mb-1 transition-opacity hover:opacity-80 ${event.completed ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 line-through" : getCategoryColor(event.category)}`}>
-                        <span className="block font-semibold">{event.title}</span>
-                        <span className="opacity-70 flex items-center gap-1 mt-0.5">
-                          <ClockIcon className="w-3 h-3" />
-                          {event.dateTime.getHours().toString().padStart(2, "0")}:{event.dateTime.getMinutes().toString().padStart(2, "0")}
-                          {event.category && ` · ${event.category}`}
-                        </span>
-                      </button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-72 p-0 dark:bg-gray-800 dark:border-gray-700" align="start">
-                      <div className="p-3 border-b border-gray-100 dark:border-gray-700">
-                        <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">
-                          {event.dateTime.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}
-                        </p>
-                      </div>
-                      <div className="p-2">
-                        <button onClick={() => onEventClick(event)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                          <div className="flex items-center gap-2">
-                            <div className={`w-2 h-2 rounded-full shrink-0 ${getCategoryColor(event.category).split(" ")[0]}`} />
-                            <p className={`text-sm font-medium flex-1 truncate ${event.completed ? "line-through text-gray-400 dark:text-gray-500" : "text-gray-700 dark:text-gray-200"}`}>{event.title}</p>
-                          </div>
-                          <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 pl-4">
-                            {event.dateTime.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+        <div className="relative">
+          {HOURS.map((hour) => {
+            const hourEvents = getEventsForHour(hour);
+            return (
+              <div key={hour} className="flex border-b border-gray-50 dark:border-gray-700/50 min-h-[56px]">
+                <div className="w-20 shrink-0 text-xs text-gray-400 dark:text-gray-500 border-r border-gray-100 dark:border-gray-700 text-right pr-3 pt-2">
+                  {hour.toString().padStart(2, "0")}:00
+                </div>
+                <div className="flex-1 p-1">
+                  {hourEvents.map((event) => (
+                    <Popover key={event.id}>
+                      <PopoverTrigger asChild>
+                        <button className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium mb-1 transition-opacity hover:opacity-80 ${event.completed ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 line-through" : getCategoryColor(event.category)}`}>
+                          <span className="block font-semibold">{event.title}</span>
+                          <span className="opacity-70 flex items-center gap-1 mt-0.5">
+                            <ClockIcon className="w-3 h-3" />
+                            {event.dateTime.getHours().toString().padStart(2, "0")}:{event.dateTime.getMinutes().toString().padStart(2, "0")}
                             {event.category && ` · ${event.category}`}
+                          </span>
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-72 p-0 dark:bg-gray-800 dark:border-gray-700" align="start">
+                        <div className="p-3 border-b border-gray-100 dark:border-gray-700">
+                          <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                            {event.dateTime.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}
                           </p>
-                        </button>
-                      </div>
-                      <div className="p-2 border-t border-gray-100 dark:border-gray-700">
-                        <button onClick={() => onEventClick(event)} className="w-full text-xs text-blue-500 hover:text-blue-600 dark:text-blue-400 py-1 transition-colors">
-                          Editar compromisso →
-                        </button>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                ))}
+                        </div>
+                        <div className="p-2">
+                          <button onClick={() => onEventClick(event)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                            <div className="flex items-center gap-2">
+                              <div className={`w-2 h-2 rounded-full shrink-0 ${getCategoryColor(event.category).split(" ")[0]}`} />
+                              <p className={`text-sm font-medium flex-1 truncate ${event.completed ? "line-through text-gray-400 dark:text-gray-500" : "text-gray-700 dark:text-gray-200"}`}>{event.title}</p>
+                            </div>
+                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 pl-4">
+                              {event.dateTime.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                              {event.category && ` · ${event.category}`}
+                            </p>
+                          </button>
+                        </div>
+                        <div className="p-2 border-t border-gray-100 dark:border-gray-700">
+                          <button onClick={() => onEventClick(event)} className="w-full text-xs text-blue-500 hover:text-blue-600 dark:text-blue-400 py-1 transition-colors">
+                            Editar compromisso →
+                          </button>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  ))}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+          <NowLine isToday={isToday} />
+        </div>
       </div>
     </div>
   );
@@ -309,56 +342,81 @@ function WeekGrid({ events, selectedDate, onEventClick }: {
         })}
       </div>
       <div ref={scrollRef} className="overflow-y-auto max-h-[600px]">
-        {HOURS.map((hour) => (
-          <div key={hour} className="flex border-b border-gray-50 dark:border-gray-700/50 min-h-[56px] min-w-full">
-            <div className="w-20 shrink-0 text-xs text-gray-400 dark:text-gray-500 border-r border-gray-100 dark:border-gray-700 text-right pr-3 pt-2">
-              {hour.toString().padStart(2, "0")}:00
-            </div>
-            {weekDays.map((day, dayIndex) => {
-              const dayEvents = getEventsForDayAndHour(day, hour);
-              return (
-                <div key={dayIndex} className="flex-1 p-1 relative">
-                  {dayEvents.map((event) => (
-                    <Popover key={event.id}>
-                      <PopoverTrigger asChild>
-                        <button className={`w-full text-left px-2 py-1 rounded-md text-xs font-medium mb-1 transition-opacity hover:opacity-80 ${event.completed ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 line-through" : getCategoryColor(event.category)}`}>
-                          <span className="block truncate">{event.title}</span>
-                          <span className="text-xs opacity-70">
-                            {event.dateTime.getHours().toString().padStart(2, "0")}:{event.dateTime.getMinutes().toString().padStart(2, "0")}
-                          </span>
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-72 p-0 dark:bg-gray-800 dark:border-gray-700" align="start">
-                        <div className="p-3 border-b border-gray-100 dark:border-gray-700">
-                          <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">
-                            {event.dateTime.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}
-                          </p>
-                        </div>
-                        <div className="p-2 space-y-1 max-h-64 overflow-y-auto">
-                          <button onClick={() => onEventClick(event)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                            <div className="flex items-center gap-2">
-                              <div className={`w-2 h-2 rounded-full shrink-0 ${getCategoryColor(event.category).split(" ")[0]}`} />
-                              <p className={`text-sm font-medium flex-1 truncate ${event.completed ? "line-through text-gray-400 dark:text-gray-500" : "text-gray-700 dark:text-gray-200"}`}>{event.title}</p>
-                            </div>
-                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 pl-4">
-                              {event.dateTime.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                              {event.category && ` · ${event.category}`}
+        <div className="relative">
+          {HOURS.map((hour) => (
+            <div key={hour} className="flex border-b border-gray-50 dark:border-gray-700/50 min-h-[56px] min-w-full">
+              <div className="w-20 shrink-0 text-xs text-gray-400 dark:text-gray-500 border-r border-gray-100 dark:border-gray-700 text-right pr-3 pt-2">
+                {hour.toString().padStart(2, "0")}:00
+              </div>
+              {weekDays.map((day, dayIndex) => {
+                const dayEvents = getEventsForDayAndHour(day, hour);
+                return (
+                  <div key={dayIndex} className="flex-1 p-1 relative">
+                    {dayEvents.map((event) => (
+                      <Popover key={event.id}>
+                        <PopoverTrigger asChild>
+                          <button className={`w-full text-left px-2 py-1 rounded-md text-xs font-medium mb-1 transition-opacity hover:opacity-80 ${event.completed ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 line-through" : getCategoryColor(event.category)}`}>
+                            <span className="block truncate">{event.title}</span>
+                            <span className="text-xs opacity-70">
+                              {event.dateTime.getHours().toString().padStart(2, "0")}:{event.dateTime.getMinutes().toString().padStart(2, "0")}
+                            </span>
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-72 p-0 dark:bg-gray-800 dark:border-gray-700" align="start">
+                          <div className="p-3 border-b border-gray-100 dark:border-gray-700">
+                            <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                              {event.dateTime.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}
                             </p>
-                          </button>
-                        </div>
-                        <div className="p-2 border-t border-gray-100 dark:border-gray-700">
-                          <button onClick={() => onEventClick(event)} className="w-full text-xs text-blue-500 hover:text-blue-600 dark:text-blue-400 py-1 transition-colors">
-                            Editar compromisso →
-                          </button>
-                        </div>
-                      </PopoverContent>
-                    </Popover>
-                  ))}
+                          </div>
+                          <div className="p-2 space-y-1 max-h-64 overflow-y-auto">
+                            <button onClick={() => onEventClick(event)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                              <div className="flex items-center gap-2">
+                                <div className={`w-2 h-2 rounded-full shrink-0 ${getCategoryColor(event.category).split(" ")[0]}`} />
+                                <p className={`text-sm font-medium flex-1 truncate ${event.completed ? "line-through text-gray-400 dark:text-gray-500" : "text-gray-700 dark:text-gray-200"}`}>{event.title}</p>
+                              </div>
+                              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 pl-4">
+                                {event.dateTime.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                                {event.category && ` · ${event.category}`}
+                              </p>
+                            </button>
+                          </div>
+                          <div className="p-2 border-t border-gray-100 dark:border-gray-700">
+                            <button onClick={() => onEventClick(event)} className="w-full text-xs text-blue-500 hover:text-blue-600 dark:text-blue-400 py-1 transition-colors">
+                              Editar compromisso →
+                            </button>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+          {/* Linha vermelha do agora na semana */}
+          {(() => {
+            const now = new Date();
+            const todayIndex = weekDays.findIndex(d => d.toDateString() === now.toDateString());
+            if (todayIndex === -1) return null;
+            const [nowState, setNowState] = useState(now);
+            useEffect(() => {
+              const interval = setInterval(() => setNowState(new Date()), 60000);
+              return () => clearInterval(interval);
+            }, []);
+            const minutes = nowState.getHours() * 60 + nowState.getMinutes();
+            const top = (minutes / 60) * 56;
+            const leftPercent = (todayIndex / 7) * 100;
+            const widthPercent = (1 / 7) * 100;
+            return (
+              <div className="absolute z-10 pointer-events-none" style={{ top: `${top}px`, left: `calc(80px + ${leftPercent}%)`, width: `${widthPercent}%` }}>
+                <div className="flex items-center">
+                  <div className="w-2 h-2 rounded-full bg-red-500 -ml-1 shrink-0" />
+                  <div className="flex-1 h-px bg-red-500" />
                 </div>
-              );
-            })}
-          </div>
-        ))}
+              </div>
+            );
+          })()}
+        </div>
       </div>
     </div>
   );
@@ -592,6 +650,13 @@ function HomeContent() {
 
   const filteredEvents = getFilteredEvents();
 
+  // Dias com eventos para os pontinhos no mini calendário
+  const daysWithEvents = events.reduce((acc, e) => {
+    const key = e.dateTime.toDateString();
+    acc[key] = true;
+    return acc;
+  }, {} as Record<string, boolean>);
+
   function getMonthName(month: number) {
     return ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"][month];
   }
@@ -666,10 +731,15 @@ function HomeContent() {
         </nav>
 
         <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700">
-          <Calendar mode="single" selected={selectedDate}
+          <Calendar
+            mode="single"
+            selected={selectedDate}
             onSelect={(date) => { if (date) { setSelectedDate(date); setCurrentView("day"); } }}
             locale={ptBR}
-            className="rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-700/50 w-full [&_table]:w-full [&_td]:p-0 [&_th]:p-0 [&_button]:w-full [&_button]:text-xs [&_.rdp-caption_label]:text-xs [&_.rdp-nav_button]:h-6 [&_.rdp-nav_button]:w-6" />
+            modifiers={{ hasEvent: (date) => !!daysWithEvents[date.toDateString()] }}
+            modifiersClassNames={{ hasEvent: "relative after:absolute after:bottom-0.5 after:left-1/2 after:-translate-x-1/2 after:w-1 after:h-1 after:rounded-full after:bg-blue-500" }}
+            className="rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-700/50 w-full [&_table]:w-full [&_td]:p-0 [&_th]:p-0 [&_button]:w-full [&_button]:text-xs [&_.rdp-caption_label]:text-xs [&_.rdp-nav_button]:h-6 [&_.rdp-nav_button]:w-6"
+          />
         </div>
 
         <div className="p-4 border-t border-gray-200 dark:border-gray-700">
@@ -695,7 +765,7 @@ function HomeContent() {
             </div>
           </div>
 
-          {currentView === "day" && <DayGrid events={filteredEvents} selectedDate={selectedDate} onEventClick={openEditModal} />}
+          {currentView === "day" && <DayGrid events={filteredEvents} selectedDate={selectedDate} onEventClick={openEditModal} onAddClick={() => openCreateModal(selectedDate)} />}
           {currentView === "week" && <WeekGrid events={filteredEvents} selectedDate={selectedDate} onEventClick={openEditModal} />}
           {currentView === "month" && <MonthGrid events={filteredEvents} selectedDate={selectedDate} onDayClick={(date) => { setSelectedDate(date); setCurrentView("day"); }} onEventClick={openEditModal} />}
         </div>
