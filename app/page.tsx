@@ -650,15 +650,48 @@ function HomeContent() {
   }
 
   function getFilteredEvents() {
-    if (currentView === "day") return events.filter(e => e.dateTime.toDateString() === selectedDate.toDateString());
+    const allEvents: EventType[] = [];
+
+    for (const event of events) {
+      const repeat = event.repeat || "none";
+
+      if (repeat === "none") {
+        // Evento normal — só aparece na data original
+        allEvents.push(event);
+        continue;
+      }
+
+      // Gera ocorrências num range de 1 ano a partir da data original
+      const origin = new Date(event.dateTime);
+      const rangeEnd = new Date(origin);
+      rangeEnd.setFullYear(origin.getFullYear() + 1);
+
+      let cursor = new Date(origin);
+      while (cursor <= rangeEnd) {
+        allEvents.push({
+          ...event,
+          dateTime: new Date(cursor),
+        });
+        if (repeat === "daily") cursor.setDate(cursor.getDate() + 1);
+        else if (repeat === "weekly") cursor.setDate(cursor.getDate() + 7);
+        else if (repeat === "monthly") cursor.setMonth(cursor.getMonth() + 1);
+      }
+    }
+
+    if (currentView === "day") {
+      return allEvents.filter(e => e.dateTime.toDateString() === selectedDate.toDateString());
+    }
     if (currentView === "week") {
       const start = new Date(selectedDate);
       start.setDate(selectedDate.getDate() - selectedDate.getDay());
       const end = new Date(start);
       end.setDate(start.getDate() + 7);
-      return events.filter(e => e.dateTime >= start && e.dateTime < end);
+      return allEvents.filter(e => e.dateTime >= start && e.dateTime < end);
     }
-    return events.filter(e => e.dateTime.getMonth() === selectedDate.getMonth() && e.dateTime.getFullYear() === selectedDate.getFullYear());
+    return allEvents.filter(e =>
+      e.dateTime.getMonth() === selectedDate.getMonth() &&
+      e.dateTime.getFullYear() === selectedDate.getFullYear()
+    );
   }
 
   const filteredEvents = getFilteredEvents();
