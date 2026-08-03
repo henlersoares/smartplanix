@@ -17,13 +17,18 @@ import {
   Popover, PopoverContent, PopoverTrigger,
 } from "@/components/ui/popover";
 import {
-  PlusIcon, TrashIcon, ClockIcon, XIcon, FileTextIcon,
+  PlusIcon, TrashIcon, ClockIcon, XIcon, FileTextIcon, PencilIcon,
 } from "lucide-react";
 
 interface EventException {
   completed?: boolean;
   deleted?: boolean;
   title?: string;
+  category?: string;
+  description?: string;
+  // horário customizado só dessa ocorrência (guardado como ISO string, já que
+  // exceptions é um objeto aninhado e não passa pelo reviver do evento base)
+  dateTimeOverride?: string;
 }
 
 interface EventType {
@@ -114,22 +119,31 @@ function CategorySelector({ value, onChange, customCategories, onAddCategory }: 
   );
 }
 
-function EventModal({ mode, isOpen, onClose, onSubmit, title, setTitle, dateTime, setDateTime, time, setTime, reminder, setReminder, repeat, setRepeat, category, setCategory, description, setDescription, customCategories, onAddCategory }: {
+function EventModal({ mode, isOpen, onClose, onSubmit, title, setTitle, dateTime, setDateTime, time, setTime, reminder, setReminder, repeat, setRepeat, category, setCategory, description, setDescription, customCategories, onAddCategory, scopeLabel, lockDate }: {
   mode: "create" | "edit"; isOpen: boolean; onClose: () => void; onSubmit: () => void;
   title: string; setTitle: (v: string) => void; dateTime: Date; setDateTime: (v: Date) => void;
   time: string; setTime: (v: string) => void; reminder: boolean; setReminder: (v: boolean) => void;
   repeat: "none" | "daily" | "weekly" | "monthly"; setRepeat: (v: "none" | "daily" | "weekly" | "monthly") => void;
   category: string; setCategory: (v: string) => void; description: string; setDescription: (v: string) => void;
   customCategories: string[]; onAddCategory: (cat: string) => void;
+  /** Texto extra abaixo do título, ex: "Editando somente esta ocorrência" */
+  scopeLabel?: string;
+  /** Quando true, a data fica travada (só o horário pode mudar) — usado ao editar uma ocorrência única de série recorrente */
+  lockDate?: boolean;
 }) {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-gray-800 rounded-xl max-w-4xl w-full p-6 shadow-xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200">
-            {mode === "create" ? "Novo Compromisso" : "Editar Compromisso"}
-          </h2>
+          <div>
+            <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200">
+              {mode === "create" ? "Novo Compromisso" : "Editar Compromisso"}
+            </h2>
+            {scopeLabel && (
+              <p className="text-xs text-blue-500 dark:text-blue-400 font-medium mt-0.5">{scopeLabel}</p>
+            )}
+          </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
             <XIcon className="w-5 h-5" />
           </button>
@@ -144,8 +158,15 @@ function EventModal({ mode, isOpen, onClose, onSubmit, title, setTitle, dateTime
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Data</label>
-              <Calendar mode="single" selected={dateTime} onSelect={(date) => date && setDateTime(date)}
-                locale={ptBR} className="rounded-md border dark:bg-gray-700 dark:border-gray-600 w-full" />
+              {lockDate ? (
+                <div className="px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-300 capitalize">
+                  {dateTime.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}
+                  <span className="block text-xs text-gray-400 dark:text-gray-500 mt-1 normal-case">A data não pode mudar ao editar só esta ocorrência</span>
+                </div>
+              ) : (
+                <Calendar mode="single" selected={dateTime} onSelect={(date) => date && setDateTime(date)}
+                  locale={ptBR} className="rounded-md border dark:bg-gray-700 dark:border-gray-600 w-full" />
+              )}
             </div>
           </div>
           <div className="space-y-4">
@@ -166,13 +187,17 @@ function EventModal({ mode, isOpen, onClose, onSubmit, title, setTitle, dateTime
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Repetir</label>
-              <select value={repeat} onChange={(e) => setRepeat(e.target.value as any)}
-                className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white">
-                <option value="none">Nao repetir</option>
-                <option value="daily">Diariamente</option>
-                <option value="weekly">Semanalmente</option>
-                <option value="monthly">Mensalmente</option>
-              </select>
+              {lockDate ? (
+                <p className="text-xs text-gray-400 dark:text-gray-500 px-1">A recorrência só pode ser alterada editando a série toda.</p>
+              ) : (
+                <select value={repeat} onChange={(e) => setRepeat(e.target.value as any)}
+                  className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white">
+                  <option value="none">Nao repetir</option>
+                  <option value="daily">Diariamente</option>
+                  <option value="weekly">Semanalmente</option>
+                  <option value="monthly">Mensalmente</option>
+                </select>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Categoria</label>
@@ -251,11 +276,12 @@ function WeekNowLine({ weekDays }: { weekDays: Date[] }) {
   );
 }
 
-function DayGrid({ events, selectedDate, onEventClick, onAddClick, onToggleComplete }: {
+function DayGrid({ events, selectedDate, onEventClick, onAddClick, onToggleComplete, onDeleteClick }: {
   events: EventOccurrence[]; selectedDate: Date;
   onEventClick: (event: EventOccurrence) => void;
   onAddClick: () => void;
   onToggleComplete: (occurrenceKey: string) => void;
+  onDeleteClick: (event: EventOccurrence) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const today = new Date();
@@ -301,14 +327,21 @@ function DayGrid({ events, selectedDate, onEventClick, onAddClick, onToggleCompl
                   {hourEvents.map((event) => (
                     <Popover key={event.occurrenceKey}>
                       <PopoverTrigger asChild>
-                        <button className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium mb-1 transition-opacity hover:opacity-80 ${event.completed ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 line-through" : getCategoryColor(event.category)}`}>
-                          <span className="block font-semibold">{event.title}</span>
+                        <div role="button" tabIndex={0}
+                          className={`group/event relative w-full text-left px-3 py-2 rounded-lg text-xs font-medium mb-1 transition-opacity hover:opacity-80 cursor-pointer ${event.completed ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 line-through" : getCategoryColor(event.category)}`}>
+                          <span className="block font-semibold pr-6">{event.title}</span>
                           <span className="opacity-70 flex items-center gap-1 mt-0.5">
                             <ClockIcon className="w-3 h-3" />
                             {event.dateTime.getHours().toString().padStart(2, "0")}:{event.dateTime.getMinutes().toString().padStart(2, "0")}
                             {event.category && ` · ${event.category}`}
                           </span>
-                        </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); onEventClick(event); }}
+                            aria-label="Editar compromisso"
+                            className="absolute top-1.5 right-1.5 p-1 rounded opacity-0 group-hover/event:opacity-100 hover:bg-black/10 dark:hover:bg-white/10 transition-opacity">
+                            <PencilIcon className="w-3 h-3" />
+                          </button>
+                        </div>
                       </PopoverTrigger>
                       <PopoverContent className="w-72 p-0 dark:bg-gray-800 dark:border-gray-700" align="start" sideOffset={5}>
                         <div className="p-3 border-b border-gray-100 dark:border-gray-700">
@@ -327,16 +360,22 @@ function DayGrid({ events, selectedDate, onEventClick, onAddClick, onToggleCompl
                             {event.isRecurring && " · recorrente"}
                           </p>
                         </div>
-                        <div className="p-2 border-t border-gray-100 dark:border-gray-700 flex gap-1">
+                        <div className="p-2 border-t border-gray-100 dark:border-gray-700 flex items-center gap-1">
                           <button
                             onClick={() => onToggleComplete(event.occurrenceKey)}
-                            className={`flex-1 text-xs py-1.5 rounded-md transition-colors ${event.completed ? "text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700" : "text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20"}`}>
+                            className={`flex-1 text-xs py-1.5 rounded-md transition-colors whitespace-nowrap ${event.completed ? "text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700" : "text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20"}`}>
                             {event.completed ? "↩ Pendente" : "✓ Concluído"}
                           </button>
-                          <div className="w-px bg-gray-100 dark:bg-gray-700" />
+                          <div className="w-px h-5 bg-gray-100 dark:bg-gray-700 shrink-0" />
                           <button onClick={() => onEventClick(event)}
-                            className="flex-1 text-xs text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 py-1.5 rounded-md transition-colors">
+                            className="flex-1 text-xs text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 py-1.5 rounded-md transition-colors whitespace-nowrap">
                             Editar →
+                          </button>
+                          <div className="w-px h-5 bg-gray-100 dark:bg-gray-700 shrink-0" />
+                          <button onClick={() => onDeleteClick(event)}
+                            aria-label="Excluir compromisso"
+                            className="shrink-0 px-2 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 py-1.5 rounded-md transition-colors">
+                            <TrashIcon className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </PopoverContent>
@@ -353,8 +392,9 @@ function DayGrid({ events, selectedDate, onEventClick, onAddClick, onToggleCompl
   );
 }
 
-function WeekGrid({ events, selectedDate, onEventClick, onToggleComplete }: {
+function WeekGrid({ events, selectedDate, onEventClick, onToggleComplete, onDeleteClick }: {
   events: EventOccurrence[]; selectedDate: Date; onEventClick: (event: EventOccurrence) => void; onToggleComplete: (occurrenceKey: string) => void;
+  onDeleteClick: (event: EventOccurrence) => void;
 }) {
   const startOfWeek = new Date(selectedDate);
   startOfWeek.setDate(selectedDate.getDate() - selectedDate.getDay());
@@ -405,12 +445,19 @@ function WeekGrid({ events, selectedDate, onEventClick, onToggleComplete }: {
                     {dayEvents.map((event) => (
                       <Popover key={event.occurrenceKey}>
                         <PopoverTrigger asChild>
-                          <button className={`w-full text-left px-2 py-1 rounded-md text-xs font-medium mb-1 transition-opacity hover:opacity-80 ${event.completed ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 line-through" : getCategoryColor(event.category)}`}>
-                            <span className="block truncate">{event.title}</span>
+                          <div role="button" tabIndex={0}
+                            className={`group/event relative w-full text-left px-2 py-1 rounded-md text-xs font-medium mb-1 transition-opacity hover:opacity-80 cursor-pointer ${event.completed ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 line-through" : getCategoryColor(event.category)}`}>
+                            <span className="block truncate pr-5">{event.title}</span>
                             <span className="text-xs opacity-70">
                               {event.dateTime.getHours().toString().padStart(2, "0")}:{event.dateTime.getMinutes().toString().padStart(2, "0")}
                             </span>
-                          </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); onEventClick(event); }}
+                              aria-label="Editar compromisso"
+                              className="absolute top-1 right-1 p-1 rounded opacity-0 group-hover/event:opacity-100 hover:bg-black/10 dark:hover:bg-white/10 transition-opacity">
+                              <PencilIcon className="w-3 h-3" />
+                            </button>
+                          </div>
                         </PopoverTrigger>
                         <PopoverContent className="w-72 p-0 dark:bg-gray-800 dark:border-gray-700" align="start">
                           <div className="p-3 border-b border-gray-100 dark:border-gray-700">
@@ -431,16 +478,22 @@ function WeekGrid({ events, selectedDate, onEventClick, onToggleComplete }: {
                               </p>
                             </button>
                           </div>
-                          <div className="p-2 border-t border-gray-100 dark:border-gray-700 flex gap-1">
+                          <div className="p-2 border-t border-gray-100 dark:border-gray-700 flex items-center gap-1">
                             <button
                               onClick={() => onToggleComplete(event.occurrenceKey)}
-                              className={`flex-1 text-xs py-1.5 rounded-md transition-colors ${event.completed ? "text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700" : "text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20"}`}>
+                              className={`flex-1 text-xs py-1.5 rounded-md transition-colors whitespace-nowrap ${event.completed ? "text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700" : "text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20"}`}>
                               {event.completed ? "↩ Pendente" : "✓ Concluído"}
                             </button>
-                            <div className="w-px bg-gray-100 dark:bg-gray-700" />
+                            <div className="w-px h-5 bg-gray-100 dark:bg-gray-700 shrink-0" />
                             <button onClick={() => onEventClick(event)}
-                              className="flex-1 text-xs text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 py-1.5 rounded-md transition-colors">
+                              className="flex-1 text-xs text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 py-1.5 rounded-md transition-colors whitespace-nowrap">
                               Editar →
+                            </button>
+                            <div className="w-px h-5 bg-gray-100 dark:bg-gray-700 shrink-0" />
+                            <button onClick={() => onDeleteClick(event)}
+                              aria-label="Excluir compromisso"
+                              className="shrink-0 px-2 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 py-1.5 rounded-md transition-colors">
+                              <TrashIcon className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         </PopoverContent>
@@ -458,9 +511,10 @@ function WeekGrid({ events, selectedDate, onEventClick, onToggleComplete }: {
   );
 }
 
-function MonthGrid({ events, selectedDate, onDayClick, onEventClick }: {
+function MonthGrid({ events, selectedDate, onDayClick, onEventClick, onDeleteClick }: {
   events: EventOccurrence[]; selectedDate: Date;
   onDayClick: (date: Date) => void; onEventClick: (event: EventOccurrence) => void;
+  onDeleteClick: (event: EventOccurrence) => void;
 }) {
   const today = new Date();
   const year = selectedDate.getFullYear();
@@ -529,17 +583,29 @@ function MonthGrid({ events, selectedDate, onDayClick, onEventClick }: {
                   </div>
                   <div className="p-2 space-y-1 max-h-64 overflow-y-auto">
                     {dayEvents.map((event) => (
-                      <button key={event.occurrenceKey} onClick={() => onEventClick(event)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                      <div key={event.occurrenceKey} role="button" tabIndex={0} onClick={() => onEventClick(event)}
+                        className="group/event relative w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer">
                         <div className="flex items-center gap-2">
                           <div className={`w-2 h-2 rounded-full shrink-0 ${getCategoryColor(event.category).split(" ")[0]}`} />
-                          <p className={`text-sm font-medium flex-1 truncate ${event.completed ? "line-through text-gray-400 dark:text-gray-500" : "text-gray-700 dark:text-gray-200"}`}>{event.title}</p>
+                          <p className={`text-sm font-medium flex-1 truncate pr-10 ${event.completed ? "line-through text-gray-400 dark:text-gray-500" : "text-gray-700 dark:text-gray-200"}`}>{event.title}</p>
                         </div>
                         <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 pl-4">
                           {event.dateTime.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                           {event.category && ` · ${event.category}`}
                           {event.isRecurring && " · recorrente"}
                         </p>
-                      </button>
+                        <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover/event:opacity-100 transition-opacity">
+                          <span className="p-1 text-gray-400 dark:text-gray-500">
+                            <PencilIcon className="w-3 h-3" />
+                          </span>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); onDeleteClick(event); }}
+                            aria-label="Excluir compromisso"
+                            className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 hover:text-red-500 transition-colors shrink-0">
+                            <TrashIcon className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
                     ))}
                   </div>
                   <div className="p-2 border-t border-gray-100 dark:border-gray-700">
@@ -557,6 +623,50 @@ function MonthGrid({ events, selectedDate, onDayClick, onEventClick }: {
   );
 }
 
+function generateAllOccurrences(events: EventType[]): EventOccurrence[] {
+  const allEvents: EventOccurrence[] = [];
+
+  for (const event of events) {
+    const repeat = event.repeat || "none";
+
+    if (repeat === "none") {
+      allEvents.push({ ...event, occurrenceKey: String(event.id), isRecurring: false });
+      continue;
+    }
+
+    // Gera ocorrências num range de 1 ano a partir da data original, aplicando exceções por data
+    const origin = new Date(event.dateTime);
+    const rangeEnd = new Date(origin);
+    rangeEnd.setFullYear(origin.getFullYear() + 1);
+
+    let cursor = new Date(origin);
+    while (cursor <= rangeEnd) {
+      const key = cursor.toDateString();
+      const exception = event.exceptions?.[key];
+
+      if (!exception?.deleted) {
+        const occDateTime = exception?.dateTimeOverride ? new Date(exception.dateTimeOverride) : new Date(cursor);
+        allEvents.push({
+          ...event,
+          dateTime: occDateTime,
+          title: exception?.title ?? event.title,
+          category: exception?.category ?? event.category,
+          description: exception?.description ?? event.description,
+          completed: exception?.completed ?? false,
+          occurrenceKey: `${event.id}-${key}`,
+          isRecurring: true,
+        });
+      }
+
+      if (repeat === "daily") cursor.setDate(cursor.getDate() + 1);
+      else if (repeat === "weekly") cursor.setDate(cursor.getDate() + 7);
+      else if (repeat === "monthly") cursor.setMonth(cursor.getMonth() + 1);
+    }
+  }
+
+  return allEvents;
+}
+
 function reviveEvents(parsed: any[]): EventType[] {
   return parsed.map((e) => ({ ...e, dateTime: new Date(e.dateTime) }));
 }
@@ -569,9 +679,13 @@ function HomeContent() {
   const [currentView, setCurrentView] = useState<ViewType>("day");
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [eventToDelete, setEventToDelete] = useState<number | null>(null);
+  const [deleteScopeEvent, setDeleteScopeEvent] = useState<EventOccurrence | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "edit">("create");
   const [editingEventId, setEditingEventId] = useState<number | null>(null);
+  const [editingScope, setEditingScope] = useState<"series" | "occurrence">("series");
+  const [editingDateKey, setEditingDateKey] = useState<string | null>(null);
+  const [scopeChoiceEvent, setScopeChoiceEvent] = useState<EventOccurrence | null>(null);
   const [formTitle, setFormTitle] = useState("");
   const [formDateTime, setFormDateTime] = useState(new Date());
   const [formTime, setFormTime] = useState("12:00");
@@ -613,6 +727,8 @@ function HomeContent() {
     setFormTitle(""); setFormDateTime(new Date()); setFormTime("12:00");
     setFormReminder(false); setFormRepeat("none"); setFormCategory(""); setFormDescription("");
     setEditingEventId(null);
+    setEditingScope("series");
+    setEditingDateKey(null);
   }
 
   function openCreateModal(date?: Date) {
@@ -623,8 +739,15 @@ function HomeContent() {
   }
 
   function openEditModal(event: EventOccurrence) {
-    // Edita sempre o evento base (a série toda), inclusive pra ocorrências recorrentes.
-    // Editar só uma ocorrência específica de uma série fica pra uma v2.
+    // Evento recorrente: pergunta se é só esta data ou a série toda antes de abrir o form.
+    if (event.isRecurring) {
+      setScopeChoiceEvent(event);
+      return;
+    }
+    fillFormFromEvent(event, "series", null);
+  }
+
+  function fillFormFromEvent(event: EventOccurrence, scope: "series" | "occurrence", dateKey: string | null) {
     setFormTitle(event.title);
     setFormDateTime(event.dateTime);
     setFormTime(`${event.dateTime.getHours().toString().padStart(2, "0")}:${event.dateTime.getMinutes().toString().padStart(2, "0")}`);
@@ -633,8 +756,18 @@ function HomeContent() {
     setFormCategory(event.category || "");
     setFormDescription(event.description || "");
     setEditingEventId(event.id);
+    setEditingScope(scope);
+    setEditingDateKey(dateKey);
     setModalMode("edit");
     setModalOpen(true);
+  }
+
+  // Chamado depois que o usuário escolhe "somente esta ocorrência" ou "toda a série"
+  function chooseEditScope(scope: "series" | "occurrence") {
+    if (!scopeChoiceEvent) return;
+    const dateKey = scope === "occurrence" ? scopeChoiceEvent.dateTime.toDateString() : null;
+    fillFormFromEvent(scopeChoiceEvent, scope, dateKey);
+    setScopeChoiceEvent(null);
   }
 
   function combineDateAndTime(date: Date, timeString: string): Date {
@@ -657,6 +790,27 @@ function HomeContent() {
       };
       setEvents((prev) => [...prev, newEvent]);
       toast.success("Compromisso adicionado!", { description: `${formTitle} - ${finalDateTime.toLocaleDateString("pt-BR")} as ${finalDateTime.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}` });
+    } else if (editingScope === "occurrence" && editingDateKey) {
+      // Edita só esta ocorrência: grava como exceção, sem tocar no evento base nem nas outras datas.
+      // Lembrete individual por ocorrência ainda não é suportado (fica pra uma próxima versão).
+      setEvents((prev) => prev.map((e) => {
+        if (e.id !== editingEventId) return e;
+        const current = e.exceptions?.[editingDateKey];
+        return {
+          ...e,
+          exceptions: {
+            ...e.exceptions,
+            [editingDateKey]: {
+              ...current,
+              title: formTitle,
+              category: formCategory.trim() || undefined,
+              description: formDescription.trim() || undefined,
+              dateTimeOverride: finalDateTime.toISOString(),
+            },
+          },
+        };
+      }));
+      toast.success("Ocorrência editada!", { description: "As outras datas da série não foram alteradas." });
     } else {
       setEvents((prev) => prev.map((e) => {
         if (e.id !== editingEventId) return e;
@@ -707,43 +861,48 @@ function HomeContent() {
     toast.warning("Compromisso removido!", { description: event?.title });
   }
 
-  function getFilteredEvents(): EventOccurrence[] {
-    const allEvents: EventOccurrence[] = [];
-
-    for (const event of events) {
-      const repeat = event.repeat || "none";
-
-      if (repeat === "none") {
-        allEvents.push({ ...event, occurrenceKey: String(event.id), isRecurring: false });
-        continue;
-      }
-
-      // Gera ocorrências num range de 1 ano a partir da data original, aplicando exceções por data
-      const origin = new Date(event.dateTime);
-      const rangeEnd = new Date(origin);
-      rangeEnd.setFullYear(origin.getFullYear() + 1);
-
-      let cursor = new Date(origin);
-      while (cursor <= rangeEnd) {
-        const key = cursor.toDateString();
-        const exception = event.exceptions?.[key];
-
-        if (!exception?.deleted) {
-          allEvents.push({
-            ...event,
-            dateTime: new Date(cursor),
-            title: exception?.title ?? event.title,
-            completed: exception?.completed ?? false,
-            occurrenceKey: `${event.id}-${key}`,
-            isRecurring: true,
-          });
-        }
-
-        if (repeat === "daily") cursor.setDate(cursor.getDate() + 1);
-        else if (repeat === "weekly") cursor.setDate(cursor.getDate() + 7);
-        else if (repeat === "monthly") cursor.setMonth(cursor.getMonth() + 1);
-      }
+  // Ponto de entrada único pra excluir: se for recorrente, pergunta o escopo antes.
+  function requestDeleteEvent(event: EventOccurrence) {
+    if (event.isRecurring) {
+      setDeleteScopeEvent(event);
+    } else {
+      setEventToDelete(event.id);
     }
+  }
+
+  function chooseDeleteScope(scope: "series" | "occurrence") {
+    if (!deleteScopeEvent) return;
+    if (scope === "series") {
+      setEventToDelete(deleteScopeEvent.id);
+    } else {
+      // Já é uma escolha deliberada do usuário — remove direto, sem confirmação extra.
+      handleRemoveOccurrence(deleteScopeEvent.id, deleteScopeEvent.dateTime.toDateString());
+    }
+    setDeleteScopeEvent(null);
+  }
+
+  // Exclui só esta data: marca a exceção como "deleted", sem remover o evento base
+  // nem afetar as outras ocorrências da série.
+  function handleRemoveOccurrence(id: number, dateKey: string) {
+    const baseEvent = events.find((e) => e.id === id);
+    const dateLabel = new Date(dateKey).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
+    setEvents((prev) => prev.map((e) => {
+      if (e.id !== id) return e;
+      const current = e.exceptions?.[dateKey];
+      return {
+        ...e,
+        exceptions: {
+          ...e.exceptions,
+          [dateKey]: { ...current, deleted: true },
+        },
+      };
+    }));
+    window.dispatchEvent(new Event('events-updated'));
+    toast.warning("Ocorrência removida!", { description: `${baseEvent?.title ?? ""} - ${dateLabel}` });
+  }
+
+  function getFilteredEvents(): EventOccurrence[] {
+    const allEvents = generateAllOccurrences(events);
 
     if (currentView === "day") {
       return allEvents.filter(e => e.dateTime.toDateString() === selectedDate.toDateString());
@@ -762,9 +921,11 @@ function HomeContent() {
   }
 
   const filteredEvents = getFilteredEvents();
+  const allOccurrences = generateAllOccurrences(events);
 
-  // Dias com eventos para os pontinhos no mini calendário
-  const daysWithEvents = events.reduce((acc, e) => {
+  // Dias com eventos para os pontinhos no mini calendário — considera todas as ocorrências
+  // geradas (recorrentes inclusive), não só a data de origem do evento base.
+  const daysWithEvents = allOccurrences.reduce((acc, e) => {
     const key = e.dateTime.toDateString();
     acc[key] = true;
     return acc;
@@ -804,7 +965,7 @@ function HomeContent() {
         onToggleTheme={toggleTheme}
         panel={(() => {
           const now = new Date();
-          const next = events.filter(e => !e.completed && e.dateTime > now).sort((a, b) => a.dateTime.getTime() - b.dateTime.getTime())[0];
+          const next = allOccurrences.filter(e => !e.completed && e.dateTime > now).sort((a, b) => a.dateTime.getTime() - b.dateTime.getTime())[0];
           if (!next) return undefined;
           const diff = next.dateTime.getTime() - now.getTime();
           const days = Math.floor(diff / (1000 * 60 * 60 * 24));
@@ -846,9 +1007,9 @@ function HomeContent() {
             </div>
           </div>
 
-          {currentView === "day" && <DayGrid events={filteredEvents} selectedDate={selectedDate} onEventClick={openEditModal} onAddClick={() => openCreateModal(selectedDate)} onToggleComplete={toggleComplete} />}
-          {currentView === "week" && <WeekGrid events={filteredEvents} selectedDate={selectedDate} onEventClick={openEditModal} onToggleComplete={toggleComplete} />}
-          {currentView === "month" && <MonthGrid events={filteredEvents} selectedDate={selectedDate} onDayClick={(date) => { setSelectedDate(date); setCurrentView("day"); }} onEventClick={openEditModal} />}
+          {currentView === "day" && <DayGrid events={filteredEvents} selectedDate={selectedDate} onEventClick={openEditModal} onAddClick={() => openCreateModal(selectedDate)} onToggleComplete={toggleComplete} onDeleteClick={requestDeleteEvent} />}
+          {currentView === "week" && <WeekGrid events={filteredEvents} selectedDate={selectedDate} onEventClick={openEditModal} onToggleComplete={toggleComplete} onDeleteClick={requestDeleteEvent} />}
+          {currentView === "month" && <MonthGrid events={filteredEvents} selectedDate={selectedDate} onDayClick={(date) => { setSelectedDate(date); setCurrentView("day"); }} onEventClick={openEditModal} onDeleteClick={requestDeleteEvent} />}
         </div>
       </main>
 
@@ -864,7 +1025,28 @@ function HomeContent() {
         category={formCategory} setCategory={setFormCategory}
         description={formDescription} setDescription={setFormDescription}
         customCategories={customCategories} onAddCategory={handleAddCustomCategory}
+        scopeLabel={editingScope === "occurrence" ? "Editando somente esta data da série" : undefined}
+        lockDate={editingScope === "occurrence"}
       />
+
+      <Dialog open={scopeChoiceEvent !== null} onOpenChange={() => setScopeChoiceEvent(null)}>
+        <DialogContent className="dark:bg-gray-800">
+          <DialogHeader>
+            <DialogTitle>Editar compromisso recorrente</DialogTitle>
+            <DialogDescription>Este compromisso é recorrente. Qual ação deseja seguir?</DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col sm:flex-col gap-2">
+            <button onClick={() => chooseEditScope("occurrence")}
+              className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+              Somente esta ocorrência
+            </button>
+            <button onClick={() => chooseEditScope("series")}
+              className="w-full px-4 py-2 border border-gray-200 dark:border-gray-600 dark:bg-gray-700 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
+              Toda a série
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={eventToDelete !== null} onOpenChange={() => setEventToDelete(null)}>
         <DialogContent className="dark:bg-gray-800">
@@ -878,6 +1060,26 @@ function HomeContent() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={deleteScopeEvent !== null} onOpenChange={() => setDeleteScopeEvent(null)}>
+        <DialogContent className="dark:bg-gray-800">
+          <DialogHeader>
+            <DialogTitle>Excluir compromisso recorrente</DialogTitle>
+            <DialogDescription>Este compromisso é recorrente. O que você quer excluir?</DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col sm:flex-col gap-2">
+            <button onClick={() => chooseDeleteScope("occurrence")}
+              className="w-full px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors">
+              Somente esta data
+            </button>
+            <button onClick={() => chooseDeleteScope("series")}
+              className="w-full px-4 py-2 border border-gray-200 dark:border-gray-600 dark:bg-gray-700 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
+              Toda a série
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }
