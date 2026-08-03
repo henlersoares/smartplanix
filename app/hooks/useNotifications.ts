@@ -1,41 +1,36 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 export function useNotifications() {
-    // Pede permissão ao usuário na primeira vez
-    useEffect(() => {
-        if ("Notification" in window && Notification.permission === "default") {
-            Notification.requestPermission();
-        }
-    }, []);
-
-    function scheduleNotification(title: string, dateTime: Date) {
-        if (!("Notification" in window)) return;
-        if (Notification.permission !== "granted") return;
-
-        const msUntilEvent = dateTime.getTime() - Date.now();
-        const msUntilReminder = msUntilEvent - 15 * 60 * 1000;
-
-        // Só agenda se o lembrete ainda está no futuro
-        if (msUntilReminder <= 0) return;
-
-        setTimeout(() => {
-            new Notification(`Lembrete: ${title}`, {
-                body: `Começa em 15 minutos`,
-                icon: "/favicon.ico",
-            });
-        }, msUntilReminder);
+  useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
     }
+  }, []);
 
-    function cancelable(title: string, dateTime: Date) {
-        const id = window.setTimeout(() => {
-            new Notification(`Lembrete: ${title}`, {
-                body: `Começa em 15 minutos`,
-                icon: "/favicon.ico",
-            });
-        }, dateTime.getTime() - Date.now() - 15 * 60 * 1000);
+  function scheduleNotification(
+    title: string,
+    dateTime: Date,
+    minutesBefore = 15
+  ): number | null {
+    if (!("Notification" in window)) return null;
+    if (Notification.permission !== "granted") return null;
 
-        return id; // guarda o id pra cancelar se deletar o evento
-    }
+    const msUntilReminder = dateTime.getTime() - Date.now() - minutesBefore * 60 * 1000;
+    if (msUntilReminder <= 0) return null;
 
-    return { scheduleNotification };
+    const id = window.setTimeout(() => {
+      new Notification(`Lembrete: ${title}`, {
+        body: `Começa em ${minutesBefore} minutos`,
+        icon: "/favicon.ico",
+      });
+    }, msUntilReminder);
+
+    return id;
+  }
+
+  function cancelNotification(id: number | null) {
+    if (id !== null) window.clearTimeout(id);
+  }
+
+  return { scheduleNotification, cancelNotification };
 }

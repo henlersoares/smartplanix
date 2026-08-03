@@ -2,13 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { useTheme } from "next-themes";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { useLocalStorage } from "@/app/hooks/useLocalStorage";
+import { Sidebar } from "@/components/sidebar";
 import {
   PlusIcon, TrashIcon, CheckCircleIcon, CircleIcon, XIcon,
-  CalendarDaysIcon, CalendarIcon as CalendarMonthIcon,
-  LayoutListIcon, SunIcon, MoonIcon, ListTodoIcon,
-  ChevronDownIcon, PencilIcon, CheckIcon,
+  ChevronDownIcon, PencilIcon, CheckIcon, ListTodoIcon,
 } from "lucide-react";
 import {
   Dialog, DialogContent, DialogDescription,
@@ -22,11 +21,14 @@ interface TaskType {
   createdAt: Date;
 }
 
+function reviveTasks(parsed: any[]): TaskType[] {
+  return parsed.map((t) => ({ ...t, createdAt: new Date(t.createdAt) }));
+}
+
 export default function TasksPage() {
-  const router = useRouter();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
-  const [tasks, setTasks] = useState<TaskType[]>([]);
+  const [tasks, setTasks] = useLocalStorage<TaskType[]>("tasks", [], reviveTasks);
   const [taskToDelete, setTaskToDelete] = useState<number | null>(null);
   const [newTitle, setNewTitle] = useState("");
   const [isAdding, setIsAdding] = useState(false);
@@ -37,18 +39,6 @@ export default function TasksPage() {
   useEffect(() => { setMounted(true); }, []);
   const isDarkMode = mounted && theme === "dark";
   const toggleTheme = () => setTheme(isDarkMode ? "light" : "dark");
-
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    const saved = localStorage.getItem("tasks");
-    if (saved) setTasks(JSON.parse(saved).map((t: any) => ({ ...t, createdAt: new Date(t.createdAt) })));
-    setLoaded(true);
-  }, []);
-
-  useEffect(() => {
-    if (loaded) localStorage.setItem("tasks", JSON.stringify(tasks));
-  }, [tasks, loaded]);
 
   function handleAddTask() {
     if (!newTitle.trim()) { toast.error("Digite o nome da tarefa!"); return; }
@@ -91,20 +81,13 @@ export default function TasksPage() {
 
   return (
     <div className="flex h-screen bg-gray-100 dark:bg-gray-900">
-      <aside className="w-72 bg-white shadow-lg flex flex-col dark:bg-gray-800 overflow-y-auto">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent dark:text-white">Smartplanix</h1>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Sua agenda inteligente</p>
-        </div>
-
-        <div className="p-4">
-          <button onClick={() => setIsAdding(true)}
-            className="w-full bg-blue-500 hover:bg-blue-600 text-white px-4 py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 shadow-sm">
-            <PlusIcon className="w-5 h-5" />Nova Tarefa
-          </button>
-        </div>
-
-        {tasks.length > 0 && (
+      <Sidebar
+        activeView="tasks"
+        onNewClick={() => setIsAdding(true)}
+        newButtonLabel="Nova Tarefa"
+        isDarkMode={isDarkMode}
+        onToggleTheme={toggleTheme}
+        panel={tasks.length > 0 && (
           <div className="mx-4 mb-3 px-3 py-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800/40 rounded-lg">
             <p className="text-xs text-purple-500 dark:text-purple-400 font-semibold mb-1">Progresso</p>
             <p className="text-sm font-bold text-purple-700 dark:text-purple-200">{completed.length} de {tasks.length} concluídas</p>
@@ -113,34 +96,7 @@ export default function TasksPage() {
             </div>
           </div>
         )}
-
-        <nav className="px-4 space-y-1 mb-3">
-          <button onClick={() => router.push("/?view=day")} className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-700">
-            <LayoutListIcon className="w-5 h-5" /><span className="font-medium">Diário</span>
-          </button>
-          <button onClick={() => router.push("/?view=week")} className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-700">
-            <CalendarDaysIcon className="w-5 h-5" /><span className="font-medium">Semanal</span>
-          </button>
-          <button onClick={() => router.push("/?view=month")} className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-700">
-            <CalendarMonthIcon className="w-5 h-5" /><span className="font-medium">Mensal</span>
-          </button>
-          <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors bg-blue-50 text-blue-600 dark:bg-gray-700 dark:text-blue-400">
-            <ListTodoIcon className="w-5 h-5" /><span className="font-medium">Tarefas</span>
-          </button>
-        </nav>
-
-        <div className="p-4 border-t border-gray-200 dark:border-gray-700 mt-auto">
-          <button onClick={toggleTheme} className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
-            <div className="flex items-center gap-3">
-              {isDarkMode ? <SunIcon className="w-5 h-5 text-yellow-500" /> : <MoonIcon className="w-5 h-5 text-gray-600 dark:text-gray-400" />}
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{isDarkMode ? "Tema Claro" : "Tema Escuro"}</span>
-            </div>
-            <div className={`w-10 h-5 rounded-full transition-colors ${isDarkMode ? "bg-blue-500" : "bg-gray-300 dark:bg-gray-600"}`}>
-              <div className={`w-4 h-4 rounded-full bg-white transition-transform mt-0.5 ${isDarkMode ? "translate-x-5" : "translate-x-0.5"}`} />
-            </div>
-          </button>
-        </div>
-      </aside>
+      />
 
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-2xl mx-auto p-8 space-y-4">

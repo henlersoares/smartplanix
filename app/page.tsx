@@ -4,9 +4,11 @@ import { useState, useEffect, useRef, Suspense } from "react";
 import { useTheme } from "next-themes";
 import { Calendar } from "@/components/ui/calendar";
 import { useNotifications } from "@/app/hooks/useNotifications";
+import { useLocalStorage } from "@/app/hooks/useLocalStorage";
+import { Sidebar } from "@/components/sidebar";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import {
   Dialog, DialogContent, DialogDescription,
   DialogFooter, DialogHeader, DialogTitle,
@@ -15,10 +17,14 @@ import {
   Popover, PopoverContent, PopoverTrigger,
 } from "@/components/ui/popover";
 import {
-  PlusIcon, TrashIcon, ClockIcon, XIcon, FileTextIcon, LayoutListIcon,
-  CalendarDaysIcon, CalendarIcon as CalendarMonthIcon,
-  SunIcon, MoonIcon, ListTodoIcon,
+  PlusIcon, TrashIcon, ClockIcon, XIcon, FileTextIcon,
 } from "lucide-react";
+
+interface EventException {
+  completed?: boolean;
+  deleted?: boolean;
+  title?: string;
+}
 
 interface EventType {
   id: number;
@@ -26,9 +32,18 @@ interface EventType {
   completed: boolean;
   dateTime: Date;
   reminder?: boolean;
+  notificationId?: number | null;
   repeat?: "none" | "daily" | "weekly" | "monthly";
   category?: string;
   description?: string;
+  exceptions?: Record<string, EventException>;
+}
+
+// Ocorrência "achatada" — o que os grids realmente renderizam.
+// occurrenceKey identifica essa ocorrência específica (evento simples ou uma data de uma série).
+interface EventOccurrence extends EventType {
+  occurrenceKey: string;
+  isRecurring: boolean;
 }
 
 type ViewType = "day" | "week" | "month";
@@ -208,11 +223,39 @@ function NowLine({ isToday }: { isToday: boolean }) {
   );
 }
 
+// Componente próprio pra linha do "agora" na visão semanal.
+// Extraído do IIFE que tinha um hook dentro dela (quebrava as Regras dos Hooks).
+function WeekNowLine({ weekDays }: { weekDays: Date[] }) {
+  const [now, setNow] = useState(new Date());
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const todayIndex = weekDays.findIndex(d => d.toDateString() === now.toDateString());
+  if (todayIndex === -1) return null;
+
+  const minutes = now.getHours() * 60 + now.getMinutes();
+  const top = (minutes / 60) * 56;
+  const leftPercent = (todayIndex / 7) * 100;
+  const widthPercent = (1 / 7) * 100;
+
+  return (
+    <div className="absolute z-10 pointer-events-none" style={{ top: `${top}px`, left: `calc(80px + ${leftPercent}%)`, width: `${widthPercent}%` }}>
+      <div className="flex items-center">
+        <div className="w-2 h-2 rounded-full bg-red-500 -ml-1 shrink-0" />
+        <div className="flex-1 h-px bg-red-500" />
+      </div>
+    </div>
+  );
+}
+
 function DayGrid({ events, selectedDate, onEventClick, onAddClick, onToggleComplete }: {
-  events: EventType[]; selectedDate: Date;
-  onEventClick: (event: EventType) => void;
+  events: EventOccurrence[]; selectedDate: Date;
+  onEventClick: (event: EventOccurrence) => void;
   onAddClick: () => void;
-  onToggleComplete: (id: number) => void;
+  onToggleComplete: (occurrenceKey: string) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const today = new Date();
@@ -256,7 +299,7 @@ function DayGrid({ events, selectedDate, onEventClick, onAddClick, onToggleCompl
                 </div>
                 <div className="flex-1 p-1">
                   {hourEvents.map((event) => (
-                    <Popover key={event.id}>
+                    <Popover key={event.occurrenceKey}>
                       <PopoverTrigger asChild>
                         <button className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium mb-1 transition-opacity hover:opacity-80 ${event.completed ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 line-through" : getCategoryColor(event.category)}`}>
                           <span className="block font-semibold">{event.title}</span>
@@ -281,11 +324,12 @@ function DayGrid({ events, selectedDate, onEventClick, onAddClick, onToggleCompl
                           <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 pl-4">
                             {event.dateTime.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                             {event.category && ` · ${event.category}`}
+                            {event.isRecurring && " · recorrente"}
                           </p>
                         </div>
                         <div className="p-2 border-t border-gray-100 dark:border-gray-700 flex gap-1">
                           <button
-                            onClick={() => onToggleComplete(event.id)}
+                            onClick={() => onToggleComplete(event.occurrenceKey)}
                             className={`flex-1 text-xs py-1.5 rounded-md transition-colors ${event.completed ? "text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700" : "text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20"}`}>
                             {event.completed ? "↩ Pendente" : "✓ Concluído"}
                           </button>
@@ -310,7 +354,7 @@ function DayGrid({ events, selectedDate, onEventClick, onAddClick, onToggleCompl
 }
 
 function WeekGrid({ events, selectedDate, onEventClick, onToggleComplete }: {
-  events: EventType[]; selectedDate: Date; onEventClick: (event: EventType) => void; onToggleComplete: (id: number) => void;
+  events: EventOccurrence[]; selectedDate: Date; onEventClick: (event: EventOccurrence) => void; onToggleComplete: (occurrenceKey: string) => void;
 }) {
   const startOfWeek = new Date(selectedDate);
   startOfWeek.setDate(selectedDate.getDate() - selectedDate.getDay());
@@ -359,7 +403,7 @@ function WeekGrid({ events, selectedDate, onEventClick, onToggleComplete }: {
                 return (
                   <div key={dayIndex} className="flex-1 p-1 relative">
                     {dayEvents.map((event) => (
-                      <Popover key={event.id}>
+                      <Popover key={event.occurrenceKey}>
                         <PopoverTrigger asChild>
                           <button className={`w-full text-left px-2 py-1 rounded-md text-xs font-medium mb-1 transition-opacity hover:opacity-80 ${event.completed ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 line-through" : getCategoryColor(event.category)}`}>
                             <span className="block truncate">{event.title}</span>
@@ -383,12 +427,13 @@ function WeekGrid({ events, selectedDate, onEventClick, onToggleComplete }: {
                               <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 pl-4">
                                 {event.dateTime.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                                 {event.category && ` · ${event.category}`}
+                                {event.isRecurring && " · recorrente"}
                               </p>
                             </button>
                           </div>
                           <div className="p-2 border-t border-gray-100 dark:border-gray-700 flex gap-1">
                             <button
-                              onClick={() => onToggleComplete(event.id)}
+                              onClick={() => onToggleComplete(event.occurrenceKey)}
                               className={`flex-1 text-xs py-1.5 rounded-md transition-colors ${event.completed ? "text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700" : "text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20"}`}>
                               {event.completed ? "↩ Pendente" : "✓ Concluído"}
                             </button>
@@ -406,29 +451,7 @@ function WeekGrid({ events, selectedDate, onEventClick, onToggleComplete }: {
               })}
             </div>
           ))}
-          {/* Linha vermelha do agora na semana */}
-          {(() => {
-            const now = new Date();
-            const todayIndex = weekDays.findIndex(d => d.toDateString() === now.toDateString());
-            if (todayIndex === -1) return null;
-            const [nowState, setNowState] = useState(now);
-            useEffect(() => {
-              const interval = setInterval(() => setNowState(new Date()), 60000);
-              return () => clearInterval(interval);
-            }, []);
-            const minutes = nowState.getHours() * 60 + nowState.getMinutes();
-            const top = (minutes / 60) * 56;
-            const leftPercent = (todayIndex / 7) * 100;
-            const widthPercent = (1 / 7) * 100;
-            return (
-              <div className="absolute z-10 pointer-events-none" style={{ top: `${top}px`, left: `calc(80px + ${leftPercent}%)`, width: `${widthPercent}%` }}>
-                <div className="flex items-center">
-                  <div className="w-2 h-2 rounded-full bg-red-500 -ml-1 shrink-0" />
-                  <div className="flex-1 h-px bg-red-500" />
-                </div>
-              </div>
-            );
-          })()}
+          <WeekNowLine weekDays={weekDays} />
         </div>
       </div>
     </div>
@@ -436,8 +459,8 @@ function WeekGrid({ events, selectedDate, onEventClick, onToggleComplete }: {
 }
 
 function MonthGrid({ events, selectedDate, onDayClick, onEventClick }: {
-  events: EventType[]; selectedDate: Date;
-  onDayClick: (date: Date) => void; onEventClick: (event: EventType) => void;
+  events: EventOccurrence[]; selectedDate: Date;
+  onDayClick: (date: Date) => void; onEventClick: (event: EventOccurrence) => void;
 }) {
   const today = new Date();
   const year = selectedDate.getFullYear();
@@ -489,7 +512,7 @@ function MonthGrid({ events, selectedDate, onDayClick, onEventClick }: {
                   </div>
                   <div className="space-y-1">
                     {dayEvents.slice(0, maxVisible).map((event) => (
-                      <div key={event.id} className={`w-full text-left px-2 py-0.5 rounded-md text-xs font-medium truncate ${event.completed ? "bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 line-through" : getCategoryColor(event.category)}`}>
+                      <div key={event.occurrenceKey} className={`w-full text-left px-2 py-0.5 rounded-md text-xs font-medium truncate ${event.completed ? "bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 line-through" : getCategoryColor(event.category)}`}>
                         {event.title}
                       </div>
                     ))}
@@ -506,7 +529,7 @@ function MonthGrid({ events, selectedDate, onDayClick, onEventClick }: {
                   </div>
                   <div className="p-2 space-y-1 max-h-64 overflow-y-auto">
                     {dayEvents.map((event) => (
-                      <button key={event.id} onClick={() => onEventClick(event)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                      <button key={event.occurrenceKey} onClick={() => onEventClick(event)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                         <div className="flex items-center gap-2">
                           <div className={`w-2 h-2 rounded-full shrink-0 ${getCategoryColor(event.category).split(" ")[0]}`} />
                           <p className={`text-sm font-medium flex-1 truncate ${event.completed ? "line-through text-gray-400 dark:text-gray-500" : "text-gray-700 dark:text-gray-200"}`}>{event.title}</p>
@@ -514,6 +537,7 @@ function MonthGrid({ events, selectedDate, onDayClick, onEventClick }: {
                         <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 pl-4">
                           {event.dateTime.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                           {event.category && ` · ${event.category}`}
+                          {event.isRecurring && " · recorrente"}
                         </p>
                       </button>
                     ))}
@@ -533,15 +557,18 @@ function MonthGrid({ events, selectedDate, onDayClick, onEventClick }: {
   );
 }
 
+function reviveEvents(parsed: any[]): EventType[] {
+  return parsed.map((e) => ({ ...e, dateTime: new Date(e.dateTime) }));
+}
+
 function HomeContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const [events, setEvents] = useState<EventType[]>([]);
-  const { scheduleNotification } = useNotifications();
+  const [events, setEvents, eventsLoaded] = useLocalStorage<EventType[]>("events", [], reviveEvents);
+  const [customCategories, setCustomCategories] = useLocalStorage<string[]>("customCategories", []);
+  const { scheduleNotification, cancelNotification } = useNotifications();
   const [currentView, setCurrentView] = useState<ViewType>("day");
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [eventToDelete, setEventToDelete] = useState<number | null>(null);
-  const [customCategories, setCustomCategories] = useState<string[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "edit">("create");
   const [editingEventId, setEditingEventId] = useState<number | null>(null);
@@ -552,7 +579,6 @@ function HomeContent() {
   const [formRepeat, setFormRepeat] = useState<"none" | "daily" | "weekly" | "monthly">("none");
   const [formCategory, setFormCategory] = useState("");
   const [formDescription, setFormDescription] = useState("");
-  const [loaded, setLoaded] = useState(false);
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
@@ -565,24 +591,21 @@ function HomeContent() {
     if (view === "week" || view === "month" || view === "day") setCurrentView(view);
   }, [searchParams]);
 
+  // Re-agenda lembretes ao montar/recarregar a página, já que os timeouts
+  // anteriores morrem quando a aba fecha ou recarrega.
   useEffect(() => {
-    const saved = localStorage.getItem("events");
-    if (saved) setEvents(JSON.parse(saved).map((e: any) => ({ ...e, dateTime: new Date(e.dateTime) })));
-    setLoaded(true);
-  }, []);
-
-  useEffect(() => {
-    if (loaded) localStorage.setItem("events", JSON.stringify(events));
-  }, [events, loaded]);
-
-  useEffect(() => {
-    const saved = localStorage.getItem("customCategories");
-    if (saved) setCustomCategories(JSON.parse(saved));
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem("customCategories", JSON.stringify(customCategories));
-  }, [customCategories]);
+    if (!eventsLoaded) return;
+    const now = new Date();
+    setEvents((prev) => prev.map((e) => {
+      if (!e.reminder) return e;
+      if (e.repeat && e.repeat !== "none") return e; // recorrência fica pra uma v2 do re-agendamento
+      if (e.dateTime <= now) return e;
+      const newId = scheduleNotification(e.title, e.dateTime);
+      return { ...e, notificationId: newId };
+    }));
+    // roda só uma vez, assim que os eventos terminam de carregar do localStorage
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventsLoaded]);
 
   function handleAddCustomCategory(cat: string) { setCustomCategories((prev) => [...prev, cat]); }
 
@@ -599,7 +622,9 @@ function HomeContent() {
     setModalOpen(true);
   }
 
-  function openEditModal(event: EventType) {
+  function openEditModal(event: EventOccurrence) {
+    // Edita sempre o evento base (a série toda), inclusive pra ocorrências recorrentes.
+    // Editar só uma ocorrência específica de uma série fica pra uma v2.
     setFormTitle(event.title);
     setFormDateTime(event.dateTime);
     setFormTime(`${event.dateTime.getHours().toString().padStart(2, "0")}:${event.dateTime.getMinutes().toString().padStart(2, "0")}`);
@@ -622,14 +647,28 @@ function HomeContent() {
   function handleSubmit() {
     if (!formTitle.trim()) { toast.error("Digite um compromisso!"); return; }
     const finalDateTime = combineDateAndTime(formDateTime, formTime);
+
     if (modalMode === "create") {
-      const newEvent = { id: Date.now(), title: formTitle, completed: false, dateTime: finalDateTime, reminder: formReminder, repeat: formRepeat, category: formCategory.trim() || undefined, description: formDescription.trim() || undefined };
+      const notificationId = formReminder ? scheduleNotification(formTitle, finalDateTime) : null;
+      const newEvent: EventType = {
+        id: Date.now(), title: formTitle, completed: false, dateTime: finalDateTime,
+        reminder: formReminder, notificationId, repeat: formRepeat,
+        category: formCategory.trim() || undefined, description: formDescription.trim() || undefined,
+      };
       setEvents((prev) => [...prev, newEvent]);
-      if (formReminder) scheduleNotification(formTitle, finalDateTime);
       toast.success("Compromisso adicionado!", { description: `${formTitle} - ${finalDateTime.toLocaleDateString("pt-BR")} as ${finalDateTime.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}` });
     } else {
-      setEvents((prev) => prev.map((e) => e.id === editingEventId ? { ...e, title: formTitle, dateTime: finalDateTime, reminder: formReminder, repeat: formRepeat, category: formCategory.trim() || undefined, description: formDescription.trim() || undefined } : e));
-      if (formReminder) scheduleNotification(formTitle, finalDateTime);
+      setEvents((prev) => prev.map((e) => {
+        if (e.id !== editingEventId) return e;
+        // cancela o lembrete antigo antes de agendar o novo, pra não duplicar notificação
+        cancelNotification(e.notificationId ?? null);
+        const notificationId = formReminder ? scheduleNotification(formTitle, finalDateTime) : null;
+        return {
+          ...e, title: formTitle, dateTime: finalDateTime, reminder: formReminder,
+          notificationId, repeat: formRepeat,
+          category: formCategory.trim() || undefined, description: formDescription.trim() || undefined,
+        };
+      }));
       toast.success("Compromisso editado!");
     }
     setModalOpen(false);
@@ -637,41 +676,69 @@ function HomeContent() {
     window.dispatchEvent(new Event('events-updated'));
   }
 
-  function toggleComplete(id: number) {
-    setEvents((prev) => prev.map((e) => e.id === id ? { ...e, completed: !e.completed } : e));
+  // occurrenceKey pode ser "1234" (evento simples) ou "1234-Wed Jul 30 2026" (ocorrência de série)
+  function toggleComplete(occurrenceKey: string) {
+    setEvents((prev) => prev.map((e) => {
+      if (occurrenceKey === String(e.id)) {
+        return { ...e, completed: !e.completed };
+      }
+      if (occurrenceKey.startsWith(`${e.id}-`)) {
+        const dateKey = occurrenceKey.slice(String(e.id).length + 1);
+        const current = e.exceptions?.[dateKey];
+        const wasCompleted = current?.completed ?? false;
+        return {
+          ...e,
+          exceptions: {
+            ...e.exceptions,
+            [dateKey]: { ...current, completed: !wasCompleted },
+          },
+        };
+      }
+      return e;
+    }));
     window.dispatchEvent(new Event('events-updated'));
   }
 
   function handleRemoveEvent(id: number) {
     const event = events.find((e) => e.id === id);
+    if (event) cancelNotification(event.notificationId ?? null);
     setEvents((prev) => prev.filter((e) => e.id !== id));
     window.dispatchEvent(new Event('events-updated'));
     toast.warning("Compromisso removido!", { description: event?.title });
   }
 
-  function getFilteredEvents() {
-    const allEvents: EventType[] = [];
+  function getFilteredEvents(): EventOccurrence[] {
+    const allEvents: EventOccurrence[] = [];
 
     for (const event of events) {
       const repeat = event.repeat || "none";
 
       if (repeat === "none") {
-        // Evento normal — só aparece na data original
-        allEvents.push(event);
+        allEvents.push({ ...event, occurrenceKey: String(event.id), isRecurring: false });
         continue;
       }
 
-      // Gera ocorrências num range de 1 ano a partir da data original
+      // Gera ocorrências num range de 1 ano a partir da data original, aplicando exceções por data
       const origin = new Date(event.dateTime);
       const rangeEnd = new Date(origin);
       rangeEnd.setFullYear(origin.getFullYear() + 1);
 
       let cursor = new Date(origin);
       while (cursor <= rangeEnd) {
-        allEvents.push({
-          ...event,
-          dateTime: new Date(cursor),
-        });
+        const key = cursor.toDateString();
+        const exception = event.exceptions?.[key];
+
+        if (!exception?.deleted) {
+          allEvents.push({
+            ...event,
+            dateTime: new Date(cursor),
+            title: exception?.title ?? event.title,
+            completed: exception?.completed ?? false,
+            occurrenceKey: `${event.id}-${key}`,
+            isRecurring: true,
+          });
+        }
+
         if (repeat === "daily") cursor.setDate(cursor.getDate() + 1);
         else if (repeat === "weekly") cursor.setDate(cursor.getDate() + 7);
         else if (repeat === "monthly") cursor.setMonth(cursor.getMonth() + 1);
@@ -729,22 +796,16 @@ function HomeContent() {
 
   return (
     <div className="flex h-screen bg-gray-100 dark:bg-gray-900">
-      <aside className="w-72 bg-white shadow-lg flex flex-col dark:bg-gray-800 overflow-y-auto">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent dark:text-white">Smartplanix</h1>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Sua agenda inteligente</p>
-        </div>
-
-        <div className="p-4">
-          <button onClick={() => openCreateModal()} className="w-full bg-blue-500 hover:bg-blue-600 text-white px-4 py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 shadow-sm">
-            <PlusIcon className="w-5 h-5" />Novo Compromisso
-          </button>
-        </div>
-
-        {(() => {
+      <Sidebar
+        activeView={currentView}
+        onNewClick={() => openCreateModal()}
+        newButtonLabel="Novo Compromisso"
+        isDarkMode={isDarkMode}
+        onToggleTheme={toggleTheme}
+        panel={(() => {
           const now = new Date();
           const next = events.filter(e => !e.completed && e.dateTime > now).sort((a, b) => a.dateTime.getTime() - b.dateTime.getTime())[0];
-          if (!next) return null;
+          if (!next) return undefined;
           const diff = next.dateTime.getTime() - now.getTime();
           const days = Math.floor(diff / (1000 * 60 * 60 * 24));
           const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
@@ -760,46 +821,20 @@ function HomeContent() {
             </div>
           );
         })()}
-
-        <nav className="px-4 space-y-1 mb-3">
-          {([["day", "Diário", LayoutListIcon], ["week", "Semanal", CalendarDaysIcon], ["month", "Mensal", CalendarMonthIcon]] as const).map(([view, label, Icon]) => (
-            <button key={view} onClick={() => setCurrentView(view)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${currentView === view ? "bg-blue-50 text-blue-600 dark:bg-gray-700 dark:text-blue-400" : "text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-700"}`}>
-              <Icon className="w-5 h-5" />
-              <span className="font-medium">{label}</span>
-            </button>
-          ))}
-          <button onClick={() => router.push("/tasks")}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-700">
-            <ListTodoIcon className="w-5 h-5" />
-            <span className="font-medium">Tarefas</span>
-          </button>
-        </nav>
-
-        <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700">
-          <Calendar
-            mode="single"
-            selected={selectedDate}
-            onSelect={(date) => { if (date) { setSelectedDate(date); setCurrentView("day"); } }}
-            locale={ptBR}
-            modifiers={{ hasEvent: (date) => !!daysWithEvents[date.toDateString()] }}
-            modifiersClassNames={{ hasEvent: "relative after:absolute after:bottom-0.5 after:left-1/2 after:-translate-x-1/2 after:w-1 after:h-1 after:rounded-full after:bg-blue-500" }}
-            className="rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-700/50 w-full [&_table]:w-full [&_td]:p-0 [&_th]:p-0 [&_button]:w-full [&_button]:text-xs [&_.rdp-caption_label]:text-xs [&_.rdp-nav_button]:h-6 [&_.rdp-nav_button]:w-6"
-          />
-        </div>
-
-        <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-          <button onClick={toggleTheme} className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
-            <div className="flex items-center gap-3">
-              {isDarkMode ? <SunIcon className="w-5 h-5 text-yellow-500" /> : <MoonIcon className="w-5 h-5 text-gray-600 dark:text-gray-400" />}
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{isDarkMode ? "Tema Claro" : "Tema Escuro"}</span>
-            </div>
-            <div className={`w-10 h-5 rounded-full transition-colors ${isDarkMode ? "bg-blue-500" : "bg-gray-300 dark:bg-gray-600"}`}>
-              <div className={`w-4 h-4 rounded-full bg-white transition-transform mt-0.5 ${isDarkMode ? "translate-x-5" : "translate-x-0.5"}`} />
-            </div>
-          </button>
-        </div>
-      </aside>
+        extraContent={
+          <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700">
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={(date) => { if (date) { setSelectedDate(date); setCurrentView("day"); } }}
+              locale={ptBR}
+              modifiers={{ hasEvent: (date) => !!daysWithEvents[date.toDateString()] }}
+              modifiersClassNames={{ hasEvent: "relative after:absolute after:bottom-0.5 after:left-1/2 after:-translate-x-1/2 after:w-1 after:h-1 after:rounded-full after:bg-blue-500" }}
+              className="rounded-xl border border-gray-200 dark:border-gray-700 dark:bg-gray-700/50 w-full [&_table]:w-full [&_td]:p-0 [&_th]:p-0 [&_button]:w-full [&_button]:text-xs [&_.rdp-caption_label]:text-xs [&_.rdp-nav_button]:h-6 [&_.rdp-nav_button]:w-6"
+            />
+          </div>
+        }
+      />
 
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-6xl mx-auto p-8">
